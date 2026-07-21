@@ -1,0 +1,249 @@
+using Godot;
+using System;
+using System.Collections.Generic;
+
+public partial class Maze : Node3D
+{
+	[Export] public int Width = 51;
+	[Export] public int Height = 51;
+	[Export] public float GridScale = 6.0f;
+	[Export] public PackedScene PlayerScene;
+	[Export] public PackedScene BossScene;
+	[Export] public bool DebugSpawnPlayerNearBoss = false;
+	[Export] public PackedScene palo_de_madera;
+	[Export] public PackedScene HudScene;
+
+	public byte[,] Map;
+	private Random _random = new Random();
+	private NavigationRegion3D _navRegion;
+	private Node3D _spawnedPlayer;
+
+	public override void _Ready()
+	{
+		if (Width % 2 == 0) Width++;
+		if (Height % 2 == 0) Height++;
+
+		// 1. Iluminación
+		var light = new DirectionalLight3D();
+		light.RotationDegrees = new Vector3(-60, 45, 0);
+		AddChild(light);
+
+		// 2. Generar datos
+		InitializeMap();
+		GenerateIterative(1, 1);
+		CreateCentralRoom();
+
+		// 3. Preparar región de navegación
+		_navRegion = new NavigationRegion3D();
+		_navRegion.NavigationMesh = new NavigationMesh
+		{
+			AgentRadius = 0.6f,
+			AgentHeight = 2.0f,
+			AgentMaxClimb = 0.3f,
+			AgentMaxSlope = 45.0f,
+			CellSize = 0.25f,
+			CellHeight = 0.25f
+		};
+		AddChild(_navRegion);
+
+		// 4. Generar Suelo y Paredes visibles
+		CreateFloorWithCollision(); 
+		DrawMapOptimized();
+		
+		// 5. Bakear el navmesh
+		_navRegion.BakeNavigationMesh(onThread: false);
+ 
+		// 6. Instanciamos dinámicamente tu Spawner
+		var spawner = new MazeSpawner();
+		AddChild(spawner);
+		spawner.SpawnEntities();
+
+		// 7. Tu HUD intacto en la esquina superior izquierda
+		SpawnHUD();
+	}
+
+	public void SetSpawnedPlayer(Node3D player)
+	{
+		_spawnedPlayer = player;
+	}
+
+	private void SpawnHUD()
+	{
+		if (HudScene == null)
+		{
+			HudScene = GD.Load<PackedScene>("res://src/ui/hud.tscn");
+		}
+		
+		if (HudScene != null)
+		{
+			var hud = HudScene.Instantiate();
+			AddChild(hud);
+			
+			// Si no se asignó desde el spawner, buscamos cualquier hijo que tenga estadísticas
+			if (_spawnedPlayer == null)
+			{
+				_spawnedPlayer = BuscarJugadorEnHijos();
+			}
+
+			if (_spawnedPlayer != null && hud.HasMethod("setup_player"))
+			{
+				hud.Call("setup_player", _spawnedPlayer);
+			}
+		}
+	}
+
+	// Método auxiliar infalible para encontrar al jugador en base a sus métodos únicos
+	private Node3D BuscarJugadorEnHijos()
+	{
+		foreach (var child in GetChildren())
+		{
+			if (child is Node3D node && node.HasMethod("modify_stat"))
+			{
+				return node;
+			}
+		}
+		return null;
+	}
+
+	public override void _Input(InputEvent @event)
+	{
+		if (@event is InputEventKey keyEvent && keyEvent.Pressed && !keyEvent.Echo)
+		{
+			// Re-verificación si la referencia se perdió
+			if (_spawnedPlayer == null)
+			{
+				_spawnedPlayer = BuscarJugadorEnHijos();
+			}
+
+			if (_spawnedPlayer != null)
+			{
+				switch (keyEvent.Keycode)
+				{
+					case Key.Key1:
+						_spawnedPlayer.Call("modify_stat", 0, -20f);
+						GD.Print("Debug UI: Tecla 1 -> -20 HP");
+						break;
+					case Key.Key2:
+						_spawnedPlayer.Call("modify_stat", 0, 20f);
+						GD.Print("Debug UI: Tecla 2 -> +20 HP");
+						break;
+					case Key.Key3:
+						_spawnedPlayer.Call("modify_stat", 1, -25f);
+						GD.Print("Debug UI: Tecla 3 -> -25 Estamina");
+						break;
+					case Key.Key4:
+						_spawnedPlayer.Call("modify_stat", 1, 25f);
+						GD.Print("Debug UI: Tecla 4 -> +25 Estamina");
+						break;
+					case Key.Key5:
+						_spawnedPlayer.Call("modify_stat", 2, -30f);
+						GD.Print("Debug UI: Tecla 5 -> -30 Hambre");
+						break;
+					case Key.Key6:
+						_spawnedPlayer.Call("modify_stat", 2, 30f);
+						GD.Print("Debug UI: Tecla 6 -> +30 Hambre");
+						break;
+					case Key.Key0:
+						if (_spawnedPlayer.HasMethod("SetInputLocked"))
+						{
+							_spawnedPlayer.Call("SetInputLocked", false);
+						}
+						_spawnedPlayer.Call("modify_stat", 0, 100f);
+						_spawnedPlayer.Call("modify_stat", 1, 100f);
+						_spawnedPlayer.Call("modify_stat", 2, 100f);
+						if (_spawnedPlayer.HasNode("StatusManager"))
+						{
+							_spawnedPlayer.GetNode("StatusManager").Call("clear_all");
+						}
+						GD.Print("Debug UI: Tecla 0 -> Resucitar y desbloquear jugador");
+						break;
+				}
+			}
+			else
+			{
+				GD.PrintErr("Debug UI Error: ¡No se encontró ningún jugador con el método 'modify_stat' en la escena!");
+			}
+		}
+	}
+
+	private void CreateFloorWithCollision()
+	{
+		var staticBody = new StaticBody3D();
+		staticBody.Position = new Vector3(((Width * GridScale) / 2) - (GridScale/2), 0, ((Height * GridScale) / 2) - (GridScale/2));
+		
+		var meshInstance = new MeshInstance3D();
+		meshInstance.Mesh = new PlaneMesh() { Size = new Vector2(Width * GridScale, Height * GridScale) };
+		
+		var collisionShape = new CollisionShape3D();
+		collisionShape.Shape = new BoxShape3D { Size = new Vector3(Width * GridScale, 0.2f, Height * GridScale) };
+		
+		staticBody.AddChild(meshInstance);
+		staticBody.AddChild(collisionShape);
+		
+		var mat = new StandardMaterial3D() { AlbedoColor = new Color(0.2f, 0.2f, 0.2f) };
+		meshInstance.SetSurfaceOverrideMaterial(0, mat);
+		_navRegion.AddChild(staticBody);
+	}
+
+	private void DrawMapOptimized()
+	{
+		var wallMaterial = new StandardMaterial3D() { AlbedoColor = new Color(0.2f, 0.6f, 0.8f) };
+		var st = new SurfaceTool();
+		st.Begin(Mesh.PrimitiveType.Triangles);
+		var boxMesh = new BoxMesh() { Size = new Vector3(GridScale, GridScale, GridScale) };
+
+		for (int z = 0; z < Height; z++)
+		{
+			for (int x = 0; x < Width; x++)
+			{
+				if (Map[x, z] == 1)
+				{
+					Transform3D transform = new Transform3D(Basis.Identity, new Vector3(x * GridScale, GridScale / 2, z * GridScale));
+					st.AppendFrom(boxMesh, 0, transform);
+				}
+			}
+		}
+		st.GenerateNormals();
+		st.SetMaterial(wallMaterial);
+		
+		var meshInstance = new MeshInstance3D { Mesh = st.Commit() };
+		meshInstance.CreateTrimeshCollision(); 
+		_navRegion.AddChild(meshInstance);
+	}
+
+	public Vector2I FindEmptySpace() { for (int x = 0; x < Width; x++) for (int z = 0; z < Height; z++) if (Map[x, z] == 0) return new Vector2I(x, z); return new Vector2I(1, 1); }
+	private void InitializeMap() { Map = new byte[Width, Height]; for (int z = 0; z < Height; z++) for (int x = 0; x < Width; x++) Map[x, z] = 1; }
+	private void GenerateIterative(int startX, int startZ) { 
+		var stack = new Stack<Vector2I>();
+		Map[startX, startZ] = 0;
+		stack.Push(new Vector2I(startX, startZ));
+		while (stack.Count > 0) {
+			var current = stack.Peek();
+			var neighbors = GetValidNeighbors(current.X, current.Y);
+			if (neighbors.Count > 0) {
+				var next = neighbors[_random.Next(neighbors.Count)];
+				Map[current.X + (next.X - current.X) / 2, current.Y + (next.Y - current.Y) / 2] = 0;
+				Map[next.X, next.Y] = 0;
+				stack.Push(next);
+			} else stack.Pop();
+		}
+	}
+	private List<Vector2I> GetValidNeighbors(int x, int z) {
+		var valid = new List<Vector2I>();
+		var dirs = new Vector2I[] { new(2, 0), new(0, 2), new(-2, 0), new(0, -2) };
+		foreach (var dir in dirs) {
+			int nx = x + dir.X, nz = z + dir.Y;
+			if (nx > 0 && nx < Width - 1 && nz > 0 && nz < Height - 1 && Map[nx, nz] == 1)
+				valid.Add(new Vector2I(nx, nz));
+		}
+		return valid;
+	}
+	private void CreateCentralRoom() {
+		int centerX = Width / 2;
+		int centerZ = Height / 2;
+		int radius = 3;
+		for (int x = centerX - radius; x <= centerX + radius; x++)
+			for (int z = centerZ - radius; z <= centerZ + radius; z++)
+				Map[x, z] = 0;
+	}
+}

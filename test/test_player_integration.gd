@@ -1,7 +1,7 @@
 extends Node3D
 
 @export var items: Array[PackedScene] = []
-var player: Node3D
+var player: CharacterBody3D
 var current_item_index: int = 0
 
 @onready var stats_label: Label = $UI/HBox/StatsPanel/VBox/StatsLabel
@@ -13,12 +13,20 @@ var log_lines: Array[String] = []
 const MAX_LOG_LINES = 15
 
 func _ready():
-	player = $TestPlayer
+	player = $Player
 	player.stats_changed.connect(_on_stats_changed)
+	
+	var palo = $Player/Head/Camera3D/Palo
+	if palo and palo.has_node("anim"):
+		palo.get_node("anim").play("equipar")
+		
 	_update_items_list()
 	_update_stats_display()
-	_add_log("=== TEST DE CONSUMIBLES ===")
-	_add_log("1-9: Item | E: Usar | D: Daño")
+	_add_log("=== TEST DE INTEGRACION ===")
+	_add_log("WASD: Mover | Mouse: Mirar")
+	_add_log("Click Izq: Atacar | E: Interactuar")
+	_add_log("1-5: Seleccionar Item | C: Usar Item")
+	_add_log("K: Dañar Jugador | L: Desbloquear Jugador")
 	_add_log("U: Veneno | I: Hambre | O: Toggle Asfixia")
 
 
@@ -33,12 +41,9 @@ func _input(event):
 			KEY_3: _select_item(2)
 			KEY_4: _select_item(3)
 			KEY_5: _select_item(4)
-			KEY_6: _select_item(5)
-			KEY_7: _select_item(6)
-			KEY_8: _select_item(7)
-			KEY_9: _select_item(8)
-			KEY_E: _use_item()
-			KEY_D: _damage_player()
+			KEY_C: _use_item()
+			KEY_K: _damage_player()
+			KEY_L: _unlock_player()
 			KEY_U: _apply_test_poison()
 			KEY_I: _apply_test_hunger()
 			KEY_O: _toggle_test_asphyxia()
@@ -67,41 +72,12 @@ func _use_item():
 	item.queue_free()
 
 func _damage_player():
-	player.modify_stat(Stats.Type.HP, -30)
-	player.modify_stat(Stats.Type.STAMINA, -20)
-	player.modify_stat(Stats.Type.HUNGER, -25)
-	_add_log("[DAMAGE] -30 HP, -20 STA, -25 HUN")
+	player.hit(30)
+	_add_log("[DAMAGE] Jugador recibe -30 HP")
 
-func _on_stats_changed():
-	_update_stats_display()
-
-func _update_stats_display():
-	if stats_label:
-		stats_label.text = player.get_stats_text()
-
-func _update_effects_display():
-	if effects_label:
-		effects_label.text = player.get_active_effects_text()
-
-func _update_items_list():
-	if not items_label: return
-	var text = ""
-	for i in range(items.size()):
-		var item = items[i].instantiate()
-		var prefix = ">> " if i == current_item_index else "   "
-		text += "%s[%s] %s\n" % [prefix, i + 1, item.data.display_name]
-		if item.component is ConsumableComponent:
-			for effect in item.component.effects:
-				text += "       %s\n" % effect.get_description()
-		item.queue_free()
-	items_label.text = text
-
-func _add_log(message: String):
-	log_lines.append(message)
-	if log_lines.size() > MAX_LOG_LINES:
-		log_lines.pop_front()
-	if log_label:
-		log_label.text = "\n".join(log_lines)
+func _unlock_player():
+	player.SetInputLocked(false)
+	_add_log("[RESET] Controles desbloqueados")
 
 var _is_asphyxia_active: bool = false
 
@@ -133,3 +109,34 @@ func _toggle_test_asphyxia():
 		player.remove_status("asfixia")
 		_add_log("[STATUS] Saliendo de zona de Asfixia")
 
+
+func _on_stats_changed():
+	_update_stats_display()
+
+func _update_stats_display():
+	if stats_label:
+		stats_label.text = player.get_stats_text()
+
+func _update_effects_display():
+	if effects_label:
+		effects_label.text = player.get_active_effects_text()
+
+func _update_items_list():
+	if not items_label: return
+	var text = ""
+	for i in range(items.size()):
+		var item = items[i].instantiate()
+		var prefix = ">> " if i == current_item_index else "   "
+		text += "%s[%s] %s\n" % [prefix, i + 1, item.data.display_name]
+		if item.component is ConsumableComponent:
+			for effect in item.component.effects:
+				text += "       %s\n" % effect.get_description()
+		item.queue_free()
+	items_label.text = text
+
+func _add_log(message: String):
+	log_lines.append(message)
+	if log_lines.size() > MAX_LOG_LINES:
+		log_lines.pop_front()
+	if log_label:
+		log_label.text = "\n".join(log_lines)
