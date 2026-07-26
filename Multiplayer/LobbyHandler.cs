@@ -38,11 +38,47 @@ public partial class LobbyHandler : Control
 		Multiplayer.ServerDisconnected += ServerDisconnected;
 
 		UpdatePlayerListUI();
+		SetLobbyState(false, false);
 	}
 
 	// Called every frame. 'delta' is the elapsed time since the previous frame.
 	public override void _Process(double delta)
 	{
+	}
+
+	private void SetLobbyState(bool isConnected, bool isHost, string statusText = "")
+	{
+		var connectionContainer = GetLobbyNode<Control>("ConnectionContainer");
+		var lobbyActionContainer = GetLobbyNode<Control>("LobbyActionContainer");
+		var startGameButton = GetLobbyNode<Button>("StartGame");
+		var statusLabel = GetLobbyNode<Label>("StatusLabel");
+
+		if (connectionContainer != null)
+		{
+			connectionContainer.Visible = !isConnected;
+		}
+
+		if (lobbyActionContainer != null)
+		{
+			lobbyActionContainer.Visible = isConnected;
+		}
+
+		if (startGameButton != null)
+		{
+			startGameButton.Visible = isConnected && isHost;
+		}
+
+		if (statusLabel != null)
+		{
+			if (!string.IsNullOrEmpty(statusText))
+			{
+				statusLabel.Text = statusText;
+			}
+			else
+			{
+				statusLabel.Text = isConnected ? (isHost ? "Status: Hosting server..." : "Status: Connected to lobby") : "Status: Disconnected";
+			}
+		}
 	}
 
 	// Signals handling
@@ -51,12 +87,14 @@ public partial class LobbyHandler : Control
 		GD.Print("Connected to server!!");
 		var nameInput = GetLobbyNode<LineEdit>("LineEdit");
 		string playerName = nameInput != null ? nameInput.Text : "";
+		SetLobbyState(true, false, "Status: Connected to server!");
 		RpcId(HOST_ID, "sendPlayerInformation", playerName, Multiplayer.GetUniqueId());
 	}
 
 	private void ConnectionFailed()
 	{
 		GD.Print("Connection failed!!");
+		SetLobbyState(false, false, "Status: Connection failed!");
 	}
 
 	private void ServerDisconnected()
@@ -64,6 +102,7 @@ public partial class LobbyHandler : Control
 		GD.Print("Server disconnected!!");
 		GameManager.Players.Clear();
 		UpdatePlayerListUI();
+		SetLobbyState(false, false, "Status: Server disconnected!");
 	}
 
 	private void PeerConnected(long id)
@@ -112,6 +151,7 @@ public partial class LobbyHandler : Control
 		if (error != Error.Ok)
 		{
 			GD.Print("[ERROR]: cannot host!!\n" + error.ToString());
+			SetLobbyState(false, false, $"[ERROR] Cannot host on port {port}");
 			return;
 		}
 		this.peer.Host.Compress(this.COMPRESSION_TYPE);
@@ -119,6 +159,7 @@ public partial class LobbyHandler : Control
 		Multiplayer.MultiplayerPeer = this.peer;
 		GD.Print($"Waiting for players on port {port}...!");
 
+		SetLobbyState(true, true, $"Status: Hosting on port {port}...");
 		GameManager.Players.Clear();
 		var nameInput = GetLobbyNode<LineEdit>("LineEdit");
 		string hostName = nameInput != null ? nameInput.Text : "";
@@ -137,6 +178,19 @@ public partial class LobbyHandler : Control
 
 		Multiplayer.MultiplayerPeer = this.peer;
 		GD.Print($"Joining game at {address}:{port}!!");
+		SetLobbyState(true, false, $"Status: Connecting to {address}:{port}...");
+	}
+
+	public void _on_leave_button_down()
+	{
+		if (Multiplayer.MultiplayerPeer != null)
+		{
+			Multiplayer.MultiplayerPeer.Close();
+			Multiplayer.MultiplayerPeer = null;
+		}
+		GameManager.Players.Clear();
+		UpdatePlayerListUI();
+		SetLobbyState(false, false, "Status: Disconnected");
 	}
 
 	public void _on_start_game_button_down()

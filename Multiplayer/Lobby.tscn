@@ -12,7 +12,7 @@ grow_vertical = 2
 script = ExtResource("1_y6mww")
 metadata/_edit_lock_ = true
 
-[node name="CenterContainer" type="CenterContainer" parent="." unique_id=1836261502]
+[node name="CenterContainer" type="CenterContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -20,91 +20,110 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="PanelContainer" type="PanelContainer" parent="CenterContainer" unique_id=1516792018]
-custom_minimum_size = Vector2(600, 340)
+[node name="PanelContainer" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(600, 360)
 layout_mode = 2
 
-[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/PanelContainer" unique_id=1893149732]
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/PanelContainer"]
 layout_mode = 2
 theme_override_constants/margin_left = 20
 theme_override_constants/margin_top = 20
 theme_override_constants/margin_right = 20
 theme_override_constants/margin_bottom = 20
 
-[node name="MainHBox" type="HBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer" unique_id=1323348338]
+[node name="MainHBox" type="HBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="LeftVBox" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox" unique_id=2010301874]
+[node name="LeftVBox" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox"]
 custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="StatusLabel" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Status: Disconnected"
+
+[node name="ConnectionContainer" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="Host" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox" unique_id=1495410756]
+[node name="Host" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 text = "Host"
 
-[node name="Join" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox" unique_id=1325356595]
+[node name="Join" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 text = "Join"
 
-[node name="StartGame" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox" unique_id=480694028]
+[node name="Label" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Player Name"
+
+[node name="LineEdit" type="LineEdit" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Enter player name..."
+
+[node name="IpLabel" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer"]
+layout_mode = 2
+text = "Server IP"
+
+[node name="IpLineEdit" type="LineEdit" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "127.0.0.1"
+
+[node name="PortLabel" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer"]
+layout_mode = 2
+text = "Port"
+
+[node name="PortLineEdit" type="LineEdit" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "8910"
+
+[node name="LobbyActionContainer" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="StartGame" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/LobbyActionContainer"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 text = "Start Game"
 
-[node name="HSeparator" type="HSeparator" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox" unique_id=1360499847]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox" unique_id=1751381848]
+[node name="Leave" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/LobbyActionContainer"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
-text = "Player Name"
+text = "Leave Lobby"
 
-[node name="LineEdit" type="LineEdit" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox" unique_id=2236144]
-unique_name_in_owner = true
-layout_mode = 2
-placeholder_text = "Enter player name..."
-
-[node name="IpLabel" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox" unique_id=2127772280]
-layout_mode = 2
-text = "Server IP"
-
-[node name="IpLineEdit" type="LineEdit" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox" unique_id=189291884]
-unique_name_in_owner = true
-layout_mode = 2
-text = "127.0.0.1"
-
-[node name="PortLabel" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox" unique_id=783868395]
-layout_mode = 2
-text = "Port"
-
-[node name="PortLineEdit" type="LineEdit" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox" unique_id=524594548]
-unique_name_in_owner = true
-layout_mode = 2
-text = "8910"
-
-[node name="RightVBox" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox" unique_id=55567677]
+[node name="RightVBox" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox"]
 custom_minimum_size = Vector2(260, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
-[node name="PlayerListTitle" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/RightVBox" unique_id=394593374]
+[node name="PlayerListTitle" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/RightVBox"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Connected Players:"
 
-[node name="PlayerList" type="ItemList" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/RightVBox" unique_id=2032671569]
+[node name="PlayerList" type="ItemList" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/RightVBox"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 
-[connection signal="button_down" from="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/Host" to="." method="_on_host_button_down"]
-[connection signal="button_down" from="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/Join" to="." method="_on_join_button_down"]
-[connection signal="button_down" from="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/StartGame" to="." method="_on_start_game_button_down"]
+[connection signal="button_down" from="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer/Host" to="." method="_on_host_button_down"]
+[connection signal="button_down" from="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer/Join" to="." method="_on_join_button_down"]
+[connection signal="button_down" from="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/LobbyActionContainer/StartGame" to="." method="_on_start_game_button_down"]
+[connection signal="button_down" from="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/LobbyActionContainer/Leave" to="." method="_on_leave_button_down"]
