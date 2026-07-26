@@ -8,7 +8,6 @@ public partial class LobbyHandler : Control
 	[Export]
 	private int PORT = 8910;
 
-	// TODO: add the ability to write a custom IP
 	[Export]
 	private string ADDRESS = "127.0.0.1";
 
