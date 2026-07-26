@@ -56,6 +56,21 @@ offset_right = 323.0
 offset_bottom = 31.0
 text = "Name"
 
+[node name="PlayerListTitle" type="Label" parent="." unique_id=394593374]
+layout_mode = 0
+offset_left = 283.0
+offset_top = 75.0
+offset_right = 430.0
+offset_bottom = 98.0
+text = "Connected Players:"
+
+[node name="PlayerList" type="ItemList" parent="." unique_id=2032671569]
+layout_mode = 0
+offset_left = 283.0
+offset_top = 105.0
+offset_right = 623.0
+offset_bottom = 285.0
+
 [connection signal="button_down" from="Host" to="." method="_on_host_button_down"]
 [connection signal="button_down" from="Join" to="." method="_on_join_button_down"]
 [connection signal="button_down" from="StartGame" to="." method="_on_start_game_button_down"]

@@ -20,42 +20,60 @@ public partial class LobbyHandler : Control
 	private ENetConnection.CompressionMode COMPRESSION_TYPE = ENetConnection.CompressionMode.RangeCoder;
 
 	private ENetMultiplayerPeer peer;
+	private ItemList playerList;
 
 	// Called when the node enters the scene tree for the first time.
 	public override void _Ready()
 	{
+		playerList = GetNode<ItemList>("PlayerList");
 		Multiplayer.PeerConnected += PeerConnected;
 		Multiplayer.PeerDisconnected += PeerDisconnected;
 		Multiplayer.ConnectedToServer += ConnectedToServer;
 		Multiplayer.ConnectionFailed += ConnectionFailed;
+		Multiplayer.ServerDisconnected += ServerDisconnected;
+
+		UpdatePlayerListUI();
 	}
 
-  // Called every frame. 'delta' is the elapsed time since the previous frame.
-  public override void _Process(double delta)
+	// Called every frame. 'delta' is the elapsed time since the previous frame.
+	public override void _Process(double delta)
 	{
 	}
 
 	// Signals handling
 	private void ConnectedToServer()
-  {
-    GD.Print("Connected to server!!");
+	{
+		GD.Print("Connected to server!!");
 		RpcId(HOST_ID, "sendPlayerInformation", GetNode<LineEdit>("LineEdit").Text, Multiplayer.GetUniqueId());
-  }
+	}
 
-	 private void ConnectionFailed()
-  {
-    GD.Print("Connection failed!!");
-  }
+	private void ConnectionFailed()
+	{
+		GD.Print("Connection failed!!");
+	}
 
-	 private void PeerConnected(long id)
-  {
-    GD.Print("Peer connected: " + id.ToString());
-  }
+	private void ServerDisconnected()
+	{
+		GD.Print("Server disconnected!!");
+		GameManager.Players.Clear();
+		UpdatePlayerListUI();
+	}
+
+	private void PeerConnected(long id)
+	{
+		GD.Print("Peer connected: " + id.ToString());
+	}
 
 	private void PeerDisconnected(long id)
-  {
-    GD.Print("Peer disconnected: " + id.ToString());
-  }
+	{
+		GD.Print("Peer disconnected: " + id.ToString());
+		removePlayerFromList((int)id);
+
+		if (Multiplayer.IsServer())
+		{
+			Rpc("removePlayerInformation", (int)id);
+		}
+	}
 
 	public void _on_host_button_down()
 	{
@@ -73,6 +91,7 @@ public partial class LobbyHandler : Control
 		Multiplayer.MultiplayerPeer = this.peer;
 		GD.Print("Waiting for players...!");
 
+		GameManager.Players.Clear();
 		sendPlayerInformation(GetNode<LineEdit>("LineEdit").Text, HOST_ID);
 	}
 
@@ -103,7 +122,7 @@ public partial class LobbyHandler : Control
 	}
 
 	// Send player information across multiple locations/scenes, etc.
-	[Rpc(MultiplayerApi.RpcMode.AnyPeer)]
+	[Rpc(MultiplayerApi.RpcMode.AnyPeer /*, CallLocal = true*/ )]
 	private void sendPlayerInformation(string name, int id)
 	{
 		PlayerInfo playerInfo = new PlayerInfo()
@@ -111,10 +130,18 @@ public partial class LobbyHandler : Control
 			Name = name,
 			Id = id
 		};
-		if (!GameManager.Players.Contains(playerInfo))
+
+		int existingIndex = GameManager.Players.FindIndex(p => p.Id == id);
+		if (existingIndex >= 0)
+		{
+			GameManager.Players[existingIndex] = playerInfo;
+		}
+		else
 		{
 			GameManager.Players.Add(playerInfo);
 		}
+
+		UpdatePlayerListUI();
 
 		if (Multiplayer.IsServer())
 		{
@@ -125,5 +152,33 @@ public partial class LobbyHandler : Control
 		}
 	}
 
-	
+	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true)]
+	private void removePlayerInformation(int id)
+	{
+		removePlayerFromList(id);
+	}
+
+	private void removePlayerFromList(int id)
+	{
+		GameManager.Players.RemoveAll(p => p.Id == id);
+		UpdatePlayerListUI();
+	}
+
+	private void UpdatePlayerListUI()
+	{
+		if (playerList == null)
+			return;
+
+		playerList.Clear();
+		foreach (var player in GameManager.Players)
+		{
+			string text = $"{player.Name} (ID: {player.Id})";
+			if (player.Id == HOST_ID)
+			{
+				text += " [Host]";
+			}
+			playerList.AddItem(text);
+		}
+	}
 }
+
