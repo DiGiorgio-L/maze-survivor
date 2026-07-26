@@ -75,11 +75,32 @@ public partial class LobbyHandler : Control
 		}
 	}
 
+	private string GetTargetAddress()
+	{
+		var ipInput = GetNodeOrNull<LineEdit>("IpLineEdit");
+		if (ipInput != null && !string.IsNullOrWhiteSpace(ipInput.Text))
+		{
+			return ipInput.Text.Trim();
+		}
+		return this.ADDRESS;
+	}
+
+	private int GetTargetPort()
+	{
+		var portInput = GetNodeOrNull<LineEdit>("PortLineEdit");
+		if (portInput != null && int.TryParse(portInput.Text.Trim(), out int customPort) && customPort > 0)
+		{
+			return customPort;
+		}
+		return this.PORT;
+	}
+
 	public void _on_host_button_down()
 	{
+		int port = GetTargetPort();
 		// Create the server.
 		this.peer = new ENetMultiplayerPeer();
-		var error = this.peer.CreateServer(this.PORT, this.MAX_CLIENTS);
+		var error = this.peer.CreateServer(port, this.MAX_CLIENTS);
 
 		if (error != Error.Ok)
 		{
@@ -89,7 +110,7 @@ public partial class LobbyHandler : Control
 		this.peer.Host.Compress(this.COMPRESSION_TYPE);
 
 		Multiplayer.MultiplayerPeer = this.peer;
-		GD.Print("Waiting for players...!");
+		GD.Print($"Waiting for players on port {port}...!");
 
 		GameManager.Players.Clear();
 		sendPlayerInformation(GetNode<LineEdit>("LineEdit").Text, HOST_ID);
@@ -97,13 +118,16 @@ public partial class LobbyHandler : Control
 
 	public void _on_join_button_down()
 	{
+		string address = GetTargetAddress();
+		int port = GetTargetPort();
+
 		// Create a client session.
 		this.peer = new ENetMultiplayerPeer();
-		this.peer.CreateClient(this.ADDRESS, this.PORT);
+		this.peer.CreateClient(address, port);
 		this.peer.Host.Compress(this.COMPRESSION_TYPE);
 
 		Multiplayer.MultiplayerPeer = this.peer;
-		GD.Print("Joining game!!");
+		GD.Print($"Joining game at {address}:{port}!!");
 	}
 
 	public void _on_start_game_button_down()
