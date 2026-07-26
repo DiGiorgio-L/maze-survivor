@@ -22,10 +22,15 @@ public partial class LobbyHandler : Control
 	private ENetMultiplayerPeer peer;
 	private ItemList playerList;
 
+	private T GetLobbyNode<T>(string nodeName) where T : Node
+	{
+		return GetNodeOrNull<T>("%" + nodeName) ?? (FindChild(nodeName) as T);
+	}
+
 	// Called when the node enters the scene tree for the first time.
 	public override void _Ready()
 	{
-		playerList = GetNode<ItemList>("PlayerList");
+		playerList = GetLobbyNode<ItemList>("PlayerList");
 		Multiplayer.PeerConnected += PeerConnected;
 		Multiplayer.PeerDisconnected += PeerDisconnected;
 		Multiplayer.ConnectedToServer += ConnectedToServer;
@@ -44,7 +49,9 @@ public partial class LobbyHandler : Control
 	private void ConnectedToServer()
 	{
 		GD.Print("Connected to server!!");
-		RpcId(HOST_ID, "sendPlayerInformation", GetNode<LineEdit>("LineEdit").Text, Multiplayer.GetUniqueId());
+		var nameInput = GetLobbyNode<LineEdit>("LineEdit");
+		string playerName = nameInput != null ? nameInput.Text : "";
+		RpcId(HOST_ID, "sendPlayerInformation", playerName, Multiplayer.GetUniqueId());
 	}
 
 	private void ConnectionFailed()
@@ -77,7 +84,7 @@ public partial class LobbyHandler : Control
 
 	private string GetTargetAddress()
 	{
-		var ipInput = GetNodeOrNull<LineEdit>("IpLineEdit");
+		var ipInput = GetLobbyNode<LineEdit>("IpLineEdit");
 		if (ipInput != null && !string.IsNullOrWhiteSpace(ipInput.Text))
 		{
 			return ipInput.Text.Trim();
@@ -87,7 +94,7 @@ public partial class LobbyHandler : Control
 
 	private int GetTargetPort()
 	{
-		var portInput = GetNodeOrNull<LineEdit>("PortLineEdit");
+		var portInput = GetLobbyNode<LineEdit>("PortLineEdit");
 		if (portInput != null && int.TryParse(portInput.Text.Trim(), out int customPort) && customPort > 0)
 		{
 			return customPort;
@@ -113,7 +120,9 @@ public partial class LobbyHandler : Control
 		GD.Print($"Waiting for players on port {port}...!");
 
 		GameManager.Players.Clear();
-		sendPlayerInformation(GetNode<LineEdit>("LineEdit").Text, HOST_ID);
+		var nameInput = GetLobbyNode<LineEdit>("LineEdit");
+		string hostName = nameInput != null ? nameInput.Text : "";
+		sendPlayerInformation(hostName, HOST_ID);
 	}
 
 	public void _on_join_button_down()
