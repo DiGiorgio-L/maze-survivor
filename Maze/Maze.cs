@@ -57,9 +57,6 @@ public partial class Maze : Node3D
 		var spawner = new MazeSpawner();
 		AddChild(spawner);
 		spawner.SpawnEntities();
-
-		// 7. Tu HUD intacto en la esquina superior izquierda
-		SpawnHUD();
 	}
 
 	public void SetSpawnedPlayer(Node3D player)
