@@ -19,15 +19,13 @@ public partial class Player : CharacterBody3D {
 	private bool _isLocked = false;
 	
 	private Node _statusManager;
+	private Map _mapUI;
 	private CanvasLayer _hud;
 	
 	public override void _Ready() {	
 		_statusManager = GetNodeOrNull("StatusManager");
-		if (_statusManager == null) {
-			GD.Print("Player: Nodo StatusManager no encontrado. Se creará dinámicamente si es necesario.");
-		}
-
 		_hud = GetNodeOrNull<CanvasLayer>("HUD");
+		
 		if (_gameCamera == null) _gameCamera = GetNodeOrNull<Camera3D>("Head/Camera3D");
 		if (_characterVisual == null) _characterVisual = GetNodeOrNull<Node3D>("MeshInstance3D");
 		if (_interactionRayCast == null) _interactionRayCast = GetNodeOrNull<RayCast3D>("Head/Camera3D/RayCast3D");
@@ -48,6 +46,10 @@ public partial class Player : CharacterBody3D {
 	public override void _Input(InputEvent @event) {
 		if (!IsMultiplayerAuthority() || _isLocked) return;
 
+		if (@event is InputEventKey keyEvent && keyEvent.Pressed && !keyEvent.Echo && keyEvent.Keycode == Key.M) {
+			ToggleMap();
+		}
+
 		if (@event is InputEventMouseMotion mouseMotion) {
 			RotateY(-mouseMotion.Relative.X * _mouseSensibility);
 			
@@ -64,7 +66,9 @@ public partial class Player : CharacterBody3D {
 			}
 		}
 
-		if (@event is InputEventKey keyEvent && keyEvent.Pressed && keyEvent.Keycode == Key.Escape) Input.MouseMode = Input.MouseModeEnum.Visible;
+		if (@event is InputEventKey escapeKey && escapeKey.Pressed && escapeKey.Keycode == Key.Escape) {
+			Input.MouseMode = Input.MouseModeEnum.Visible;
+		}
 
 		bool isInteractPressed = (@event is InputEventKey interactKey && interactKey.Pressed && interactKey.Keycode == Key.E) || 
 			(InputMap.HasAction("interact") && @event.IsActionPressed("interact"));
@@ -77,11 +81,28 @@ public partial class Player : CharacterBody3D {
 		}
 	}
 
-	public override void _PhysicsProcess(double delta) {
+	private void ToggleMap() {
+		if (_mapUI == null || !IsInstanceValid(_mapUI)) {
+			var mapNode = GetTree().Root.FindChild("Map", recursive: true, owned: false);
+			if (mapNode is Map map) {
+				_mapUI = map;
+			}
+		}
 
+		if (_mapUI != null) {
+			_mapUI.Visible = !_mapUI.Visible;
+			if (_mapUI.Visible) {
+				_mapUI.MoveToFront();
+				_mapUI.QueueRedraw();
+			}
+		} else {
+			GD.PrintErr("Player: No se encontró el nodo 'Map' en el árbol de escenas.");
+		}
+	}
+
+	public override void _PhysicsProcess(double delta) {
 		if (!IsMultiplayerAuthority()) return;
 		
-		// Procesar la regeneración pasiva de estamina
 		ProcessStaminaRegen(delta);
 		
 		Vector3 direction = Vector3.Zero;
@@ -93,7 +114,6 @@ public partial class Player : CharacterBody3D {
 			if (Input.IsActionPressed("right")) direction += Transform.Basis.X;
 		}
 
-		// Mecánica de Carrera (Sprint con Shift)
 		bool isSprintingRequested = !_isLocked && (Input.IsKeyPressed(Key.Shift) || (InputMap.HasAction("sprint") && Input.IsActionPressed("sprint")));
 		float currentSpeed = _speed;
 
@@ -101,8 +121,8 @@ public partial class Player : CharacterBody3D {
 			direction = direction.Normalized();
 
 			if (isSprintingRequested && GetStat(1) > 0f) {
-				currentSpeed *= 1.4f; // 40% más rápido al correr
-				modify_stat(1, -12.0f * (float)delta); // Consumir 12 de estamina por segundo al correr
+				currentSpeed *= 1.4f; 
+				modify_stat(1, -12.0f * (float)delta); 
 			}
 
 			_targetVelocity.X = direction.X * currentSpeed;
@@ -113,7 +133,9 @@ public partial class Player : CharacterBody3D {
 			_targetVelocity.Z = 0f;
 		}
 
-		if (!IsOnFloor()) _targetVelocity.Y -= _gravity * (float)delta;
+		if (!IsOnFloor()) {
+			_targetVelocity.Y -= _gravity * (float)delta;
+		}
 		else if (!_isLocked && Input.IsActionJustPressed("jump")) {
 			if (GetStat(1) >= 5f) {
 				_targetVelocity.Y = _jumpStrength;
