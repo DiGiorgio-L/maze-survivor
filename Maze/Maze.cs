@@ -55,6 +55,7 @@ public partial class Maze : Node3D
 		spawner.SpawnEntities();
 
 		SpawnHUD();
+
 	}
 
 	public void SetSpawnedPlayer(Node3D player)

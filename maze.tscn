@@ -4,18 +4,16 @@
 [ext_resource type="PackedScene" uid="uid://dgpjpqapjyifa" path="res://Player/player.tscn" id="2_u11kd"]
 [ext_resource type="PackedScene" uid="uid://ta25gl41cvnm" path="res://assets/palo/palo_de_madera.tscn" id="3_u11kd"]
 [ext_resource type="PackedScene" uid="uid://dapgaq80f0cwh" path="res://src/enemies/boss/boss.tscn" id="3_ugm30"]
-[ext_resource type="PackedScene" uid="uid://c8n4y2b3u1h5d" path="res://src/ui/hud.tscn" id="4_hud"]
 [ext_resource type="Texture2D" uid="uid://dap15xautvmgo" path="res://Maze/paredes.jpg" id="6_mjrf4"]
-[ext_resource type="Texture2D" uid="uid://ea44crpgcglq" path="res://Maze/piso2.jpg" id="7_mjrf4"]
+[ext_resource type="Texture2D" uid="uid://bddghnnsnshbf" path="res://Maze/piso.jpg" id="6_pgab2"]
 
 [node name="Node3D" type="Node3D" unique_id=882580129]
 script = ExtResource("1_h41xc")
 PlayerScene = ExtResource("2_u11kd")
 BossScene = ExtResource("3_ugm30")
 palo_de_madera = ExtResource("3_u11kd")
-HudScene = ExtResource("4_hud")
 WallTexture = ExtResource("6_mjrf4")
-FloorTexture = ExtResource("7_mjrf4")
+FloorTexture = ExtResource("6_pgab2")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=348789510]
 light_energy = 0.1

@@ -20,10 +20,12 @@ public partial class Player : CharacterBody3D {
 	
 	private Node _statusManager;
 	private Map _mapUI;
-
+	private CanvasLayer _hud;
+	
 	public override void _Ready() {	
 		_statusManager = GetNodeOrNull("StatusManager");
-
+		_hud = GetNodeOrNull<CanvasLayer>("HUD");
+		
 		if (_gameCamera == null) _gameCamera = GetNodeOrNull<Camera3D>("Head/Camera3D");
 		if (_characterVisual == null) _characterVisual = GetNodeOrNull<Node3D>("MeshInstance3D");
 		if (_interactionRayCast == null) _interactionRayCast = GetNodeOrNull<RayCast3D>("Head/Camera3D/RayCast3D");
@@ -31,18 +33,19 @@ public partial class Player : CharacterBody3D {
 		if (IsMultiplayerAuthority()) {
 			if (_gameCamera != null) _gameCamera.Current = true;
 			if (_characterVisual != null) _characterVisual.Visible = false;
+			if (_hud != null) _hud.Visible = true;
 			Input.MouseMode = Input.MouseModeEnum.Captured;
 		}
 		else {
 			if (_gameCamera != null) _gameCamera.Current = false;
 			if (_characterVisual != null) _characterVisual.Visible = true;
+			if (_hud != null) _hud.Visible = false;
 		}
 	}
 	
 	public override void _Input(InputEvent @event) {
 		if (!IsMultiplayerAuthority() || _isLocked) return;
 
-		// --- DETECTAR TECLA M PARA LA TABLET ---
 		if (@event is InputEventKey keyEvent && keyEvent.Pressed && !keyEvent.Echo && keyEvent.Keycode == Key.M) {
 			ToggleMap();
 		}
@@ -98,8 +101,9 @@ public partial class Player : CharacterBody3D {
 	}
 
 	public override void _PhysicsProcess(double delta) {
-
 		if (!IsMultiplayerAuthority()) return;
+		
+		ProcessStaminaRegen(delta);
 		
 		Vector3 direction = Vector3.Zero;
 
@@ -110,10 +114,19 @@ public partial class Player : CharacterBody3D {
 			if (Input.IsActionPressed("right")) direction += Transform.Basis.X;
 		}
 
+		bool isSprintingRequested = !_isLocked && (Input.IsKeyPressed(Key.Shift) || (InputMap.HasAction("sprint") && Input.IsActionPressed("sprint")));
+		float currentSpeed = _speed;
+
 		if (direction != Vector3.Zero) {
 			direction = direction.Normalized();
-			_targetVelocity.X = direction.X * _speed;
-			_targetVelocity.Z = direction.Z * _speed;
+
+			if (isSprintingRequested && GetStat(1) > 0f) {
+				currentSpeed *= 1.4f; 
+				modify_stat(1, -12.0f * (float)delta); 
+			}
+
+			_targetVelocity.X = direction.X * currentSpeed;
+			_targetVelocity.Z = direction.Z * currentSpeed;
 		} 
 		else {
 			_targetVelocity.X = 0f;
@@ -124,8 +137,10 @@ public partial class Player : CharacterBody3D {
 			_targetVelocity.Y -= _gravity * (float)delta;
 		}
 		else if (!_isLocked && Input.IsActionJustPressed("jump")) {
-			_targetVelocity.Y = _jumpStrength;
-			modify_stat(1, -5f);
+			if (GetStat(1) >= 5f) {
+				_targetVelocity.Y = _jumpStrength;
+				modify_stat(1, -5f);
+			}
 		} 
 
 		Velocity = _targetVelocity;
