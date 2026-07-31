@@ -13,6 +13,9 @@ public partial class Maze : Node3D
 	[Export] public PackedScene palo_de_madera;
 	[Export] public PackedScene HudScene;
 
+	[Export] public Texture2D WallTexture;
+	[Export] public Texture2D FloorTexture;
+
 	public byte[,] Map;
 	private Random _random = new Random();
 	private NavigationRegion3D _navRegion;
@@ -23,17 +26,13 @@ public partial class Maze : Node3D
 		if (Width % 2 == 0) Width++;
 		if (Height % 2 == 0) Height++;
 
-		// 1. Iluminación
-		var light = new DirectionalLight3D();
-		light.RotationDegrees = new Vector3(-60, 45, 0);
-		AddChild(light);
+		if (WallTexture == null) WallTexture = GD.Load<Texture2D>("res://src/Maze/paredes.jpg");
+		if (FloorTexture == null) FloorTexture = GD.Load<Texture2D>("res://src/Maze/piso.jpg");
 
-		// 2. Generar datos
 		InitializeMap();
 		GenerateIterative(1, 1);
 		CreateCentralRoom();
 
-		// 3. Preparar región de navegación
 		_navRegion = new NavigationRegion3D();
 		_navRegion.NavigationMesh = new NavigationMesh
 		{
@@ -46,19 +45,15 @@ public partial class Maze : Node3D
 		};
 		AddChild(_navRegion);
 
-		// 4. Generar Suelo y Paredes visibles
 		CreateFloorWithCollision(); 
 		DrawMapOptimized();
 		
-		// 5. Bakear el navmesh
 		_navRegion.BakeNavigationMesh(onThread: false);
- 
-		// 6. Instanciamos dinámicamente tu Spawner
+
 		var spawner = new MazeSpawner();
 		AddChild(spawner);
 		spawner.SpawnEntities();
 
-		// 7. Tu HUD intacto en la esquina superior izquierda
 		SpawnHUD();
 	}
 
@@ -79,7 +74,6 @@ public partial class Maze : Node3D
 			var hud = HudScene.Instantiate();
 			AddChild(hud);
 			
-			// Si no se asignó desde el spawner, buscamos cualquier hijo que tenga estadísticas
 			if (_spawnedPlayer == null)
 			{
 				_spawnedPlayer = BuscarJugadorEnHijos();
@@ -89,10 +83,24 @@ public partial class Maze : Node3D
 			{
 				hud.Call("setup_player", _spawnedPlayer);
 			}
+
+			// Instanciar el mapa dándole el nombre "Map"
+			var mapUI = hud.GetNodeOrNull<Map>("Map"); 
+			if (mapUI == null)
+			{
+				mapUI = new Map();
+				mapUI.Name = "Map"; 
+				hud.AddChild(mapUI);
+			}
+			
+			mapUI.InitializeMapData(Map, GridScale);
+			if (_spawnedPlayer != null)
+			{
+				mapUI.SetPlayer(_spawnedPlayer);
+			}
 		}
 	}
 
-	// Método auxiliar infalible para encontrar al jugador en base a sus métodos únicos
 	private Node3D BuscarJugadorEnHijos()
 	{
 		foreach (var child in GetChildren())
@@ -109,7 +117,6 @@ public partial class Maze : Node3D
 	{
 		if (@event is InputEventKey keyEvent && keyEvent.Pressed && !keyEvent.Echo)
 		{
-			// Re-verificación si la referencia se perdió
 			if (_spawnedPlayer == null)
 			{
 				_spawnedPlayer = BuscarJugadorEnHijos();
@@ -159,10 +166,6 @@ public partial class Maze : Node3D
 						break;
 				}
 			}
-			else
-			{
-				GD.PrintErr("Debug UI Error: ¡No se encontró ningún jugador con el método 'modify_stat' en la escena!");
-			}
 		}
 	}
 
@@ -180,17 +183,51 @@ public partial class Maze : Node3D
 		staticBody.AddChild(meshInstance);
 		staticBody.AddChild(collisionShape);
 		
-		var mat = new StandardMaterial3D() { AlbedoColor = new Color(0.2f, 0.2f, 0.2f) };
+		var mat = new StandardMaterial3D();
+		if (FloorTexture != null)
+		{
+			mat.AlbedoTexture = FloorTexture;
+			mat.Uv1Scale = new Vector3(Width / 2.0f, Height / 2.0f, 1.0f);
+			mat.TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic;
+		}
+		else
+		{
+			mat.AlbedoColor = new Color(0.2f, 0.2f, 0.2f);
+		}
+
 		meshInstance.SetSurfaceOverrideMaterial(0, mat);
 		_navRegion.AddChild(staticBody);
 	}
 
 	private void DrawMapOptimized()
 	{
-		var wallMaterial = new StandardMaterial3D() { AlbedoColor = new Color(0.2f, 0.6f, 0.8f) };
-		var st = new SurfaceTool();
-		st.Begin(Mesh.PrimitiveType.Triangles);
+		var wallMaterial = new StandardMaterial3D();
+		if (WallTexture != null)
+		{
+			wallMaterial.AlbedoTexture = WallTexture;
+			wallMaterial.Uv1Scale = new Vector3(1.0f, 1.0f, 1.0f);
+			wallMaterial.TextureFilter = BaseMaterial3D.TextureFilterEnum.LinearWithMipmapsAnisotropic;
+		}
+		else
+		{
+			wallMaterial.AlbedoColor = new Color(0.2f, 0.6f, 0.8f);
+		}
+
 		var boxMesh = new BoxMesh() { Size = new Vector3(GridScale, GridScale, GridScale) };
+		boxMesh.Material = wallMaterial;
+
+		int wallCount = 0;
+		for (int z = 0; z < Height; z++)
+			for (int x = 0; x < Width; x++)
+				if (Map[x, z] == 1) wallCount++;
+
+		var multiMesh = new MultiMesh();
+		multiMesh.Mesh = boxMesh;
+		multiMesh.TransformFormat = MultiMesh.TransformFormatEnum.Transform3D;
+		multiMesh.InstanceCount = wallCount;
+
+		int index = 0;
+		var staticBody = new StaticBody3D();
 
 		for (int z = 0; z < Height; z++)
 		{
@@ -198,17 +235,25 @@ public partial class Maze : Node3D
 			{
 				if (Map[x, z] == 1)
 				{
-					Transform3D transform = new Transform3D(Basis.Identity, new Vector3(x * GridScale, GridScale / 2, z * GridScale));
-					st.AppendFrom(boxMesh, 0, transform);
+					Vector3 pos = new Vector3(x * GridScale, GridScale / 2, z * GridScale);
+					Transform3D transform = new Transform3D(Basis.Identity, pos);
+					multiMesh.SetInstanceTransform(index, transform);
+
+					var colShape = new CollisionShape3D();
+					colShape.Shape = new BoxShape3D { Size = new Vector3(GridScale, GridScale, GridScale) };
+					colShape.Position = pos;
+					staticBody.AddChild(colShape);
+
+					index++;
 				}
 			}
 		}
-		st.GenerateNormals();
-		st.SetMaterial(wallMaterial);
+
+		var multiMeshInstance = new MultiMeshInstance3D();
+		multiMeshInstance.Multimesh = multiMesh;
 		
-		var meshInstance = new MeshInstance3D { Mesh = st.Commit() };
-		meshInstance.CreateTrimeshCollision(); 
-		_navRegion.AddChild(meshInstance);
+		_navRegion.AddChild(multiMeshInstance);
+		_navRegion.AddChild(staticBody);
 	}
 
 	public Vector2I FindEmptySpace() { for (int x = 0; x < Width; x++) for (int z = 0; z < Height; z++) if (Map[x, z] == 0) return new Vector2I(x, z); return new Vector2I(1, 1); }

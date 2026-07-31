@@ -19,12 +19,10 @@ public partial class Player : CharacterBody3D {
 	private bool _isLocked = false;
 	
 	private Node _statusManager;
-	
+	private Map _mapUI;
+
 	public override void _Ready() {	
 		_statusManager = GetNodeOrNull("StatusManager");
-		if (_statusManager == null) {
-			GD.Print("Player: Nodo StatusManager no encontrado. Se creará dinámicamente si es necesario.");
-		}
 
 		if (_gameCamera == null) _gameCamera = GetNodeOrNull<Camera3D>("Head/Camera3D");
 		if (_characterVisual == null) _characterVisual = GetNodeOrNull<Node3D>("MeshInstance3D");
@@ -44,6 +42,11 @@ public partial class Player : CharacterBody3D {
 	public override void _Input(InputEvent @event) {
 		if (!IsMultiplayerAuthority() || _isLocked) return;
 
+		// --- DETECTAR TECLA M PARA LA TABLET ---
+		if (@event is InputEventKey keyEvent && keyEvent.Pressed && !keyEvent.Echo && keyEvent.Keycode == Key.M) {
+			ToggleMap();
+		}
+
 		if (@event is InputEventMouseMotion mouseMotion) {
 			RotateY(-mouseMotion.Relative.X * _mouseSensibility);
 			
@@ -60,7 +63,9 @@ public partial class Player : CharacterBody3D {
 			}
 		}
 
-		if (@event is InputEventKey keyEvent && keyEvent.Pressed && keyEvent.Keycode == Key.Escape) Input.MouseMode = Input.MouseModeEnum.Visible;
+		if (@event is InputEventKey escapeKey && escapeKey.Pressed && escapeKey.Keycode == Key.Escape) {
+			Input.MouseMode = Input.MouseModeEnum.Visible;
+		}
 
 		bool isInteractPressed = (@event is InputEventKey interactKey && interactKey.Pressed && interactKey.Keycode == Key.E) || 
 			(InputMap.HasAction("interact") && @event.IsActionPressed("interact"));
@@ -73,13 +78,31 @@ public partial class Player : CharacterBody3D {
 		}
 	}
 
+	private void ToggleMap() {
+		if (_mapUI == null || !IsInstanceValid(_mapUI)) {
+			var mapNode = GetTree().Root.FindChild("Map", recursive: true, owned: false);
+			if (mapNode is Map map) {
+				_mapUI = map;
+			}
+		}
+
+		if (_mapUI != null) {
+			_mapUI.Visible = !_mapUI.Visible;
+			if (_mapUI.Visible) {
+				_mapUI.MoveToFront();
+				_mapUI.QueueRedraw();
+			}
+		} else {
+			GD.PrintErr("Player: No se encontró el nodo 'Map' en el árbol de escenas.");
+		}
+	}
+
 	public override void _PhysicsProcess(double delta) {
 
 		if (!IsMultiplayerAuthority()) return;
 		
 		Vector3 direction = Vector3.Zero;
 
-		// NOTE (DiGiorgio-L): I changed the action constants (a.k.a: "up" to "ui_up", and so on...) due to the interpreter throwing errors related to the non-existence of those "up", "down"... constants. Dont't know if it could behave differently on other devices. Fortunately, it is pretty easy to undo. 
 		if (!_isLocked) {
 			if (Input.IsActionPressed("up")) direction -= Transform.Basis.Z;
 			if (Input.IsActionPressed("down")) direction += Transform.Basis.Z;
@@ -97,12 +120,12 @@ public partial class Player : CharacterBody3D {
 			_targetVelocity.Z = 0f;
 		}
 
-		if (!IsOnFloor()) _targetVelocity.Y -= _gravity * (float)delta;
+		if (!IsOnFloor()) {
+			_targetVelocity.Y -= _gravity * (float)delta;
+		}
 		else if (!_isLocked && Input.IsActionJustPressed("jump")) {
-			if (GetStat(1) >= 5f) {
-				_targetVelocity.Y = _jumpStrength;
-				modify_stat(1, -5f);
-			}
+			_targetVelocity.Y = _jumpStrength;
+			modify_stat(1, -5f);
 		} 
 
 		Velocity = _targetVelocity;
