@@ -31,13 +31,19 @@ public partial class Player : CharacterBody3D {
 		if (_interactionRayCast == null) _interactionRayCast = GetNodeOrNull<RayCast3D>("Head/Camera3D/RayCast3D");
 
 		if (IsMultiplayerAuthority()) {
-			if (_gameCamera != null) _gameCamera.Current = true;
+			if (_gameCamera != null) {
+				_gameCamera.Current = true;
+				GD.Print($"[Player {Name}] Authority camera set CURRENT=true");
+			}
 			if (_characterVisual != null) _characterVisual.Visible = false;
 			if (_hud != null) _hud.Visible = true;
 			Input.MouseMode = Input.MouseModeEnum.Captured;
 		}
 		else {
-			if (_gameCamera != null) _gameCamera.Current = false;
+			if (_gameCamera != null) {
+				_gameCamera.Current = false;
+				GD.Print($"[Player {Name}] Non-authority camera set CURRENT=false");
+			}
 			if (_characterVisual != null) _characterVisual.Visible = true;
 			if (_hud != null) _hud.Visible = false;
 		}
