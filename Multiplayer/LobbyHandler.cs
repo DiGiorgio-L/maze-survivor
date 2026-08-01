@@ -12,7 +12,7 @@ public partial class LobbyHandler : Control
 	private string ADDRESS = "127.0.0.1";
 
 	[Export]
-	private int MAX_CLIENTS = 4;
+	private int MAX_PLAYERS = 4;
 
 	private int HOST_ID = 1;
 
@@ -143,9 +143,10 @@ public partial class LobbyHandler : Control
 	public void _on_host_button_down()
 	{
 		int port = GetTargetPort();
-		// Create the server.
+		// Create the server. Allow (MAX_PLAYERS - 1) client connections because Host counts as 1 player.
+		int maxClients = Math.Max(1, this.MAX_PLAYERS - 1);
 		this.peer = new ENetMultiplayerPeer();
-		var error = this.peer.CreateServer(port, this.MAX_CLIENTS);
+		var error = this.peer.CreateServer(port, maxClients);
 
 		if (error != Error.Ok)
 		{
@@ -156,7 +157,7 @@ public partial class LobbyHandler : Control
 		this.peer.Host.Compress(this.COMPRESSION_TYPE);
 
 		Multiplayer.MultiplayerPeer = this.peer;
-		GD.Print($"Waiting for players on port {port}...!");
+		GD.Print($"Waiting for up to {maxClients} clients ({MAX_PLAYERS} total players) on port {port}...!");
 
 		SetLobbyState(true, true, $"Status: Hosting on port {port}...");
 		GameManager.Players.Clear();
@@ -224,6 +225,16 @@ public partial class LobbyHandler : Control
 		}
 		else
 		{
+			// Server-side validation: disconnect if total players would exceed room limit
+			if (Multiplayer.IsServer() && GameManager.Players.Count >= MAX_PLAYERS)
+			{
+				GD.PrintErr($"[Server] Connection rejected: Lobby is full ({GameManager.Players.Count}/{MAX_PLAYERS} players). Peer ID: {id}");
+				if (peer != null && id != HOST_ID)
+				{
+					peer.DisconnectPeer(id);
+				}
+				return;
+			}
 			GameManager.Players.Add(playerInfo);
 		}
 
