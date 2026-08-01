@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Linq;
 
 // Currently only used to handle the process of spawning players and asigning them their authority ID.
 public partial class SceneManager : Node
@@ -13,7 +14,7 @@ public partial class SceneManager : Node
 
 		int index = 0;
 		var spawnPoints = GetTree().GetNodesInGroup("PlayerSpawnPoints");
-		foreach (var item in GameManager.Players)
+		foreach (var item in GameManager.Players.Where(p => !p.IsSpectator))
 		{
 			Player currentPlayer = playerScene.Instantiate<Player>();
 			currentPlayer.Name = item.Id.ToString();

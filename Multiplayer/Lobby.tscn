@@ -62,6 +62,12 @@ custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 text = "Join"
 
+[node name="JoinSpectator" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+text = "Join as Spectator"
+
 [node name="Label" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -123,7 +129,18 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 
+[node name="SpectatorListTitle" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/RightVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Spectators:"
+
+[node name="SpectatorList" type="ItemList" parent="CenterContainer/PanelContainer/MarginContainer/MainHBox/RightVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
 [connection signal="button_down" from="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer/Host" to="." method="_on_host_button_down"]
 [connection signal="button_down" from="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer/Join" to="." method="_on_join_button_down"]
+[connection signal="button_down" from="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/ConnectionContainer/JoinSpectator" to="." method="_on_join_spectator_button_down"]
 [connection signal="button_down" from="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/LobbyActionContainer/StartGame" to="." method="_on_start_game_button_down"]
 [connection signal="button_down" from="CenterContainer/PanelContainer/MarginContainer/MainHBox/LeftVBox/LobbyActionContainer/Leave" to="." method="_on_leave_button_down"]

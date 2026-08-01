@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Linq;
 using System.Net.Sockets;
 
 public partial class LobbyHandler : Control
@@ -14,12 +15,20 @@ public partial class LobbyHandler : Control
 	[Export]
 	private int MAX_PLAYERS = 4;
 
+	[Export]
+	private int MAX_SPECTATORS = 4;
+
 	private int HOST_ID = 1;
+
+	private bool _joiningAsSpectator = false;
 
 	private ENetConnection.CompressionMode COMPRESSION_TYPE = ENetConnection.CompressionMode.RangeCoder;
 
 	private ENetMultiplayerPeer peer;
 	private ItemList playerList;
+	private ItemList spectatorList;
+	private Label playerListTitle;
+	private Label spectatorListTitle;
 
 	private T GetLobbyNode<T>(string nodeName) where T : Node
 	{
@@ -30,6 +39,10 @@ public partial class LobbyHandler : Control
 	public override void _Ready()
 	{
 		playerList = GetLobbyNode<ItemList>("PlayerList");
+		spectatorList = GetLobbyNode<ItemList>("SpectatorList");
+		playerListTitle = GetLobbyNode<Label>("PlayerListTitle");
+		spectatorListTitle = GetLobbyNode<Label>("SpectatorListTitle");
+
 		Multiplayer.PeerConnected += PeerConnected;
 		Multiplayer.PeerDisconnected += PeerDisconnected;
 		Multiplayer.ConnectedToServer += ConnectedToServer;
@@ -83,11 +96,11 @@ public partial class LobbyHandler : Control
 	// Signals handling
 	private void ConnectedToServer()
 	{
-		GD.Print("Connected to server!!");
+		GD.Print($"Connected to server! Role: {(_joiningAsSpectator ? "Spectator" : "Player")}");
 		var nameInput = GetLobbyNode<LineEdit>("LineEdit");
 		string playerName = nameInput != null ? nameInput.Text : "";
 		SetLobbyState(true, false, "Status: Connected to server!");
-		RpcId(HOST_ID, "sendPlayerInformation", playerName, Multiplayer.GetUniqueId());
+		RpcId(HOST_ID, "sendPlayerInformation", playerName, Multiplayer.GetUniqueId(), _joiningAsSpectator);
 	}
 
 	private void ConnectionFailed()
@@ -140,9 +153,10 @@ public partial class LobbyHandler : Control
 
 	public void _on_host_button_down()
 	{
+		_joiningAsSpectator = false;
 		int port = GetTargetPort();
-		// Create the server. Allow (MAX_PLAYERS - 1) client connections because Host counts as 1 player.
-		int maxClients = Math.Max(1, this.MAX_PLAYERS - 1);
+		// Create the server. Total capacity = MAX_PLAYERS + MAX_SPECTATORS - 1 client peers
+		int maxClients = Math.Max(1, (this.MAX_PLAYERS + this.MAX_SPECTATORS) - 1);
 		this.peer = new ENetMultiplayerPeer();
 		var error = this.peer.CreateServer(port, maxClients);
 
@@ -155,16 +169,28 @@ public partial class LobbyHandler : Control
 		this.peer.Host.Compress(this.COMPRESSION_TYPE);
 
 		Multiplayer.MultiplayerPeer = this.peer;
-		GD.Print($"Waiting for up to {maxClients} clients ({MAX_PLAYERS} total players) on port {port}...!");
+		GD.Print($"Waiting for players & spectators on port {port}...!");
 
 		SetLobbyState(true, true, $"Status: Hosting on port {port}...");
 		GameManager.Players.Clear();
 		var nameInput = GetLobbyNode<LineEdit>("LineEdit");
 		string hostName = nameInput != null ? nameInput.Text : "";
-		sendPlayerInformation(hostName, HOST_ID);
+		sendPlayerInformation(hostName, HOST_ID, false);
 	}
 
 	public void _on_join_button_down()
+	{
+		_joiningAsSpectator = false;
+		JoinServer();
+	}
+
+	public void _on_join_spectator_button_down()
+	{
+		_joiningAsSpectator = true;
+		JoinServer();
+	}
+
+	private void JoinServer()
 	{
 		string address = GetTargetAddress();
 		int port = GetTargetPort();
@@ -175,8 +201,9 @@ public partial class LobbyHandler : Control
 		this.peer.Host.Compress(this.COMPRESSION_TYPE);
 
 		Multiplayer.MultiplayerPeer = this.peer;
-		GD.Print($"Joining game at {address}:{port}!!");
-		SetLobbyState(true, false, $"Status: Connecting to {address}:{port}...");
+		string mode = _joiningAsSpectator ? "spectator" : "player";
+		GD.Print($"Joining game at {address}:{port} as {mode}!!");
+		SetLobbyState(true, false, $"Status: Connecting to {address}:{port} ({mode})...");
 	}
 
 	public void _on_leave_button_down()
@@ -236,12 +263,13 @@ public partial class LobbyHandler : Control
 
 	// Send player information across multiple locations/scenes, etc.
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer /*, CallLocal = true*/ )]
-	private void sendPlayerInformation(string name, int id)
+	private void sendPlayerInformation(string name, int id, bool isSpectator)
 	{
 		PlayerInfo playerInfo = new PlayerInfo()
 		{
 			Name = name,
-			Id = id
+			Id = id,
+			IsSpectator = isSpectator
 		};
 
 		int existingIndex = GameManager.Players.FindIndex(p => p.Id == id);
@@ -251,15 +279,24 @@ public partial class LobbyHandler : Control
 		}
 		else
 		{
-			// Server-side validation: disconnect if total players would exceed room limit
-			if (Multiplayer.IsServer() && GameManager.Players.Count >= MAX_PLAYERS)
+			// Server-side validation: disconnect if player or spectator capacity is reached
+			if (Multiplayer.IsServer())
 			{
-				GD.PrintErr($"[Server] Connection rejected: Lobby is full ({GameManager.Players.Count}/{MAX_PLAYERS} players). Peer ID: {id}");
-				if (peer != null && id != HOST_ID)
+				int activeCount = GameManager.Players.Count(p => !p.IsSpectator);
+				int specCount = GameManager.Players.Count(p => p.IsSpectator);
+
+				if (!isSpectator && activeCount >= MAX_PLAYERS)
 				{
-					peer.DisconnectPeer(id);
+					GD.PrintErr($"[Server] Connection rejected: Active player limit reached ({activeCount}/{MAX_PLAYERS}). Peer ID: {id}");
+					if (peer != null && id != HOST_ID) peer.DisconnectPeer(id);
+					return;
 				}
-				return;
+				else if (isSpectator && specCount >= MAX_SPECTATORS)
+				{
+					GD.PrintErr($"[Server] Connection rejected: Spectator limit reached ({specCount}/{MAX_SPECTATORS}). Peer ID: {id}");
+					if (peer != null && id != HOST_ID) peer.DisconnectPeer(id);
+					return;
+				}
 			}
 			GameManager.Players.Add(playerInfo);
 		}
@@ -270,7 +307,7 @@ public partial class LobbyHandler : Control
 		{
 			foreach (var item in GameManager.Players)
 			{
-				Rpc("sendPlayerInformation", item.Name, item.Id);
+				Rpc("sendPlayerInformation", item.Name, item.Id, item.IsSpectator);
 			}
 		}
 	}
@@ -289,18 +326,45 @@ public partial class LobbyHandler : Control
 
 	private void UpdatePlayerListUI()
 	{
-		if (playerList == null)
-			return;
+		var activePlayers = GameManager.Players.Where(p => !p.IsSpectator).ToList();
+		var spectators = GameManager.Players.Where(p => p.IsSpectator).ToList();
 
-		playerList.Clear();
-		foreach (var player in GameManager.Players)
+		if (playerListTitle != null)
 		{
-			string text = $"{player.Name} (ID: {player.Id})";
-			if (player.Id == HOST_ID)
+			playerListTitle.Text = $"Connected Players ({activePlayers.Count}/{MAX_PLAYERS}):";
+		}
+
+		if (spectatorListTitle != null)
+		{
+			spectatorListTitle.Text = $"Spectators ({spectators.Count}/{MAX_SPECTATORS}):";
+		}
+
+		if (playerList != null)
+		{
+			playerList.Clear();
+			foreach (var player in activePlayers)
 			{
-				text += " [Host]";
+				string text = $"{player.Name} (ID: {player.Id})";
+				if (player.Id == HOST_ID)
+				{
+					text += " [Host]";
+				}
+				playerList.AddItem(text);
 			}
-			playerList.AddItem(text);
+		}
+
+		if (spectatorList != null)
+		{
+			spectatorList.Clear();
+			foreach (var spectator in spectators)
+			{
+				string text = $"{spectator.Name} (ID: {spectator.Id})";
+				if (spectator.Id == HOST_ID)
+				{
+					text += " [Host]";
+				}
+				spectatorList.AddItem(text);
+			}
 		}
 	}
 }
