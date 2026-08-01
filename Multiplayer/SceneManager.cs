@@ -10,22 +10,27 @@ public partial class SceneManager : Node
 	public override void _Ready()
 	{
 		int index = 0;
+		var spawnPoints = GetTree().GetNodesInGroup("PlayerSpawnPoints");
 		foreach (var item in GameManager.Players)
 		{
-			// The spawnpoints is scalable due to the fact that it uses a group of 3D nodes.
-			// NOTE (DiGiorgio-L): it currently is only set up to be used with 2 players; that means only two spawnPoints. 
 			Player currentPlayer = playerScene.Instantiate<Player>();
 			currentPlayer.Name = item.Id.ToString();
-			currentPlayer.SetMultiplayerAuthority(item.Id); // TEST
+			currentPlayer.SetMultiplayerAuthority(item.Id);
 			AddChild(currentPlayer);
-			foreach (Node3D spawnPoint in GetTree().GetNodesInGroup("PlayerSpawnPoints"))
+
+			if (spawnPoints.Count > 0)
 			{
-				if (int.Parse(spawnPoint.Name) == index)
+				int targetIndex = index % spawnPoints.Count;
+				foreach (Node3D spawnPoint in spawnPoints)
 				{
-					currentPlayer.GlobalPosition = spawnPoint.GlobalPosition;
+					if (int.TryParse(spawnPoint.Name, out int spIndex) && spIndex == targetIndex)
+					{
+						currentPlayer.GlobalPosition = spawnPoint.GlobalPosition;
+						break;
+					}
 				}
 			}
-			index ++;
+			index++;
 		}
 	}
 
