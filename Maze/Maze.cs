@@ -4,15 +4,18 @@ using System.Collections.Generic;
 
 public partial class Maze : Node3D
 {
+	[ExportGroup("Maze Settings")]
 	[Export] public int Width = 51;
 	[Export] public int Height = 51;
 	[Export] public float GridScale = 6.0f;
+
+	[ExportGroup("Spawning & Entities")]
 	[Export] public PackedScene PlayerScene;
 	[Export] public PackedScene BossScene;
 	[Export] public bool DebugSpawnPlayerNearBoss = false;
 	[Export] public PackedScene palo_de_madera;
-	[Export] public PackedScene HudScene;
 
+	[ExportGroup("Texture Options")]
 	[Export] public Texture2D WallTexture;
 	[Export] public Texture2D FloorTexture;
 
@@ -25,9 +28,6 @@ public partial class Maze : Node3D
 	{
 		if (Width % 2 == 0) Width++;
 		if (Height % 2 == 0) Height++;
-
-		if (WallTexture == null) WallTexture = GD.Load<Texture2D>("res://src/Maze/paredes.jpg");
-		if (FloorTexture == null) FloorTexture = GD.Load<Texture2D>("res://src/Maze/piso.jpg");
 
 		InitializeMap();
 		GenerateIterative(1, 1);
@@ -54,8 +54,8 @@ public partial class Maze : Node3D
 		AddChild(spawner);
 		spawner.SpawnEntities();
 
-		SpawnHUD();
-
+		// Inicialización del minimapa Map sin necesidad del SpawnHUD
+		SetupMapUI();
 	}
 
 	public void SetSpawnedPlayer(Node3D player)
@@ -63,42 +63,33 @@ public partial class Maze : Node3D
 		_spawnedPlayer = player;
 	}
 
-	private void SpawnHUD()
+	private void SetupMapUI()
 	{
-		if (HudScene == null)
+		if (_spawnedPlayer == null)
 		{
-			HudScene = GD.Load<PackedScene>("res://src/ui/hud.tscn");
+			_spawnedPlayer = BuscarJugadorEnHijos();
 		}
-		
-		if (HudScene != null)
+
+		// Busca si ya existe un nodo Map en la escena o crea uno nuevo
+		var mapUI = GetNodeOrNull<Map>("Map") ?? FindChild("Map", true, false) as Map;
+
+		if (mapUI == null)
 		{
-			var hud = HudScene.Instantiate();
-			AddChild(hud);
-			
-			if (_spawnedPlayer == null)
+			mapUI = new Map();
+			mapUI.Name = "Map";
+			if (mapUI is Control controlMap)
 			{
-				_spawnedPlayer = BuscarJugadorEnHijos();
+				controlMap.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 			}
+			AddChild(mapUI);
+		}
 
-			if (_spawnedPlayer != null && hud.HasMethod("setup_player"))
-			{
-				hud.Call("setup_player", _spawnedPlayer);
-			}
+		mapUI.SetProcessUnhandledInput(true);
+		mapUI.InitializeMapData(Map, GridScale);
 
-			// Instanciar el mapa dándole el nombre "Map"
-			var mapUI = hud.GetNodeOrNull<Map>("Map"); 
-			if (mapUI == null)
-			{
-				mapUI = new Map();
-				mapUI.Name = "Map"; 
-				hud.AddChild(mapUI);
-			}
-			
-			mapUI.InitializeMapData(Map, GridScale);
-			if (_spawnedPlayer != null)
-			{
-				mapUI.SetPlayer(_spawnedPlayer);
-			}
+		if (_spawnedPlayer != null)
+		{
+			mapUI.SetPlayer(_spawnedPlayer);
 		}
 	}
 

@@ -181,3 +181,4 @@ public partial class Player : CharacterBody3D {
 		remove_status(statusId);
 	}
 }
+// hablar con alejandro
