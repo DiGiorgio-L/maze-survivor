@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Linq;
 using System.Net.Sockets;
 
 public partial class LobbyHandler : Control
@@ -12,14 +13,22 @@ public partial class LobbyHandler : Control
 	private string ADDRESS = "127.0.0.1";
 
 	[Export]
-	private int MAX_CLIENTS = 4;
+	private int MAX_PLAYERS = 4;
+
+	[Export]
+	private int MAX_SPECTATORS = 4;
 
 	private int HOST_ID = 1;
+
+	private bool _joiningAsSpectator = false;
 
 	private ENetConnection.CompressionMode COMPRESSION_TYPE = ENetConnection.CompressionMode.RangeCoder;
 
 	private ENetMultiplayerPeer peer;
 	private ItemList playerList;
+	private ItemList spectatorList;
+	private Label playerListTitle;
+	private Label spectatorListTitle;
 
 	private T GetLobbyNode<T>(string nodeName) where T : Node
 	{
@@ -30,6 +39,10 @@ public partial class LobbyHandler : Control
 	public override void _Ready()
 	{
 		playerList = GetLobbyNode<ItemList>("PlayerList");
+		spectatorList = GetLobbyNode<ItemList>("SpectatorList");
+		playerListTitle = GetLobbyNode<Label>("PlayerListTitle");
+		spectatorListTitle = GetLobbyNode<Label>("SpectatorListTitle");
+
 		Multiplayer.PeerConnected += PeerConnected;
 		Multiplayer.PeerDisconnected += PeerDisconnected;
 		Multiplayer.ConnectedToServer += ConnectedToServer;
@@ -83,25 +96,23 @@ public partial class LobbyHandler : Control
 	// Signals handling
 	private void ConnectedToServer()
 	{
-		GD.Print("Connected to server!!");
+		GD.Print($"Connected to server! Role: {(_joiningAsSpectator ? "Spectator" : "Player")}");
 		var nameInput = GetLobbyNode<LineEdit>("LineEdit");
 		string playerName = nameInput != null ? nameInput.Text : "";
 		SetLobbyState(true, false, "Status: Connected to server!");
-		RpcId(HOST_ID, "sendPlayerInformation", playerName, Multiplayer.GetUniqueId());
+		RpcId(HOST_ID, "sendPlayerInformation", playerName, Multiplayer.GetUniqueId(), _joiningAsSpectator);
 	}
 
 	private void ConnectionFailed()
 	{
 		GD.Print("Connection failed!!");
-		SetLobbyState(false, false, "Status: Connection failed!");
+		ReturnToLobby("Status: Connection failed!");
 	}
 
 	private void ServerDisconnected()
 	{
 		GD.Print("Server disconnected!!");
-		GameManager.Players.Clear();
-		UpdatePlayerListUI();
-		SetLobbyState(false, false, "Status: Server disconnected!");
+		ReturnToLobby("Status: Host disconnected. Returned to lobby.");
 	}
 
 	private void PeerConnected(long id)
@@ -142,10 +153,12 @@ public partial class LobbyHandler : Control
 
 	public void _on_host_button_down()
 	{
+		_joiningAsSpectator = false;
 		int port = GetTargetPort();
-		// Create the server.
+		// Create the server. Total capacity = MAX_PLAYERS + MAX_SPECTATORS - 1 client peers
+		int maxClients = Math.Max(1, (this.MAX_PLAYERS + this.MAX_SPECTATORS) - 1);
 		this.peer = new ENetMultiplayerPeer();
-		var error = this.peer.CreateServer(port, this.MAX_CLIENTS);
+		var error = this.peer.CreateServer(port, maxClients);
 
 		if (error != Error.Ok)
 		{
@@ -156,16 +169,28 @@ public partial class LobbyHandler : Control
 		this.peer.Host.Compress(this.COMPRESSION_TYPE);
 
 		Multiplayer.MultiplayerPeer = this.peer;
-		GD.Print($"Waiting for players on port {port}...!");
+		GD.Print($"Waiting for players & spectators on port {port}...!");
 
 		SetLobbyState(true, true, $"Status: Hosting on port {port}...");
 		GameManager.Players.Clear();
 		var nameInput = GetLobbyNode<LineEdit>("LineEdit");
 		string hostName = nameInput != null ? nameInput.Text : "";
-		sendPlayerInformation(hostName, HOST_ID);
+		sendPlayerInformation(hostName, HOST_ID, false);
 	}
 
 	public void _on_join_button_down()
+	{
+		_joiningAsSpectator = false;
+		JoinServer();
+	}
+
+	public void _on_join_spectator_button_down()
+	{
+		_joiningAsSpectator = true;
+		JoinServer();
+	}
+
+	private void JoinServer()
 	{
 		string address = GetTargetAddress();
 		int port = GetTargetPort();
@@ -176,20 +201,48 @@ public partial class LobbyHandler : Control
 		this.peer.Host.Compress(this.COMPRESSION_TYPE);
 
 		Multiplayer.MultiplayerPeer = this.peer;
-		GD.Print($"Joining game at {address}:{port}!!");
-		SetLobbyState(true, false, $"Status: Connecting to {address}:{port}...");
+		string mode = _joiningAsSpectator ? "spectator" : "player";
+		GD.Print($"Joining game at {address}:{port} as {mode}!!");
+		SetLobbyState(true, false, $"Status: Connecting to {address}:{port} ({mode})...");
 	}
 
 	public void _on_leave_button_down()
 	{
+		ReturnToLobby("Status: Disconnected");
+	}
+
+	public void ReturnToLobby(string statusMessage = "Status: Disconnected")
+	{
+		// 1. Clean up active game scenes
+		var activeGame = GetTree().Root.GetNodeOrNull("ActiveGameScene");
+		if (activeGame != null)
+		{
+			activeGame.QueueFree();
+		}
+
+		foreach (Node child in GetTree().Root.GetChildren())
+		{
+			if (child is SceneManager)
+			{
+				child.QueueFree();
+			}
+		}
+
+		// 2. Safely close multiplayer peer
 		if (Multiplayer.MultiplayerPeer != null)
 		{
 			Multiplayer.MultiplayerPeer.Close();
 			Multiplayer.MultiplayerPeer = null;
 		}
+
+		// 3. Clear player list state
 		GameManager.Players.Clear();
 		UpdatePlayerListUI();
-		SetLobbyState(false, false, "Status: Disconnected");
+
+		// 4. Restore input mouse mode and reveal Lobby UI
+		Input.MouseMode = Input.MouseModeEnum.Visible;
+		this.Show();
+		SetLobbyState(false, false, statusMessage);
 	}
 
 	public void _on_start_game_button_down()
@@ -201,20 +254,21 @@ public partial class LobbyHandler : Control
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void startGame()
 	{	
-		// NOTE (DiGiorgio-L): Modify this to load a different scene. Right now it is set up to work with the test_scene.
-		var scene = ResourceLoader.Load<PackedScene>("res://test/test_multiplayer_scene.tscn").Instantiate<SceneManager>();
+		var scene = ResourceLoader.Load<PackedScene>("res://maze.tscn").Instantiate();
+		scene.Name = "ActiveGameScene";
 		GetTree().Root.AddChild(scene);
 		this.Hide();
 	}
 
 	// Send player information across multiple locations/scenes, etc.
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer /*, CallLocal = true*/ )]
-	private void sendPlayerInformation(string name, int id)
+	private void sendPlayerInformation(string name, int id, bool isSpectator)
 	{
 		PlayerInfo playerInfo = new PlayerInfo()
 		{
 			Name = name,
-			Id = id
+			Id = id,
+			IsSpectator = isSpectator
 		};
 
 		int existingIndex = GameManager.Players.FindIndex(p => p.Id == id);
@@ -224,6 +278,25 @@ public partial class LobbyHandler : Control
 		}
 		else
 		{
+			// Server-side validation: disconnect if player or spectator capacity is reached
+			if (Multiplayer.IsServer())
+			{
+				int activeCount = GameManager.Players.Count(p => !p.IsSpectator);
+				int specCount = GameManager.Players.Count(p => p.IsSpectator);
+
+				if (!isSpectator && activeCount >= MAX_PLAYERS)
+				{
+					GD.PrintErr($"[Server] Connection rejected: Active player limit reached ({activeCount}/{MAX_PLAYERS}). Peer ID: {id}");
+					if (peer != null && id != HOST_ID) peer.DisconnectPeer(id);
+					return;
+				}
+				else if (isSpectator && specCount >= MAX_SPECTATORS)
+				{
+					GD.PrintErr($"[Server] Connection rejected: Spectator limit reached ({specCount}/{MAX_SPECTATORS}). Peer ID: {id}");
+					if (peer != null && id != HOST_ID) peer.DisconnectPeer(id);
+					return;
+				}
+			}
 			GameManager.Players.Add(playerInfo);
 		}
 
@@ -233,7 +306,7 @@ public partial class LobbyHandler : Control
 		{
 			foreach (var item in GameManager.Players)
 			{
-				Rpc("sendPlayerInformation", item.Name, item.Id);
+				Rpc("sendPlayerInformation", item.Name, item.Id, item.IsSpectator);
 			}
 		}
 	}
@@ -252,18 +325,45 @@ public partial class LobbyHandler : Control
 
 	private void UpdatePlayerListUI()
 	{
-		if (playerList == null)
-			return;
+		var activePlayers = GameManager.Players.Where(p => !p.IsSpectator).ToList();
+		var spectators = GameManager.Players.Where(p => p.IsSpectator).ToList();
 
-		playerList.Clear();
-		foreach (var player in GameManager.Players)
+		if (playerListTitle != null)
 		{
-			string text = $"{player.Name} (ID: {player.Id})";
-			if (player.Id == HOST_ID)
+			playerListTitle.Text = $"Connected Players ({activePlayers.Count}/{MAX_PLAYERS}):";
+		}
+
+		if (spectatorListTitle != null)
+		{
+			spectatorListTitle.Text = $"Spectators ({spectators.Count}/{MAX_SPECTATORS}):";
+		}
+
+		if (playerList != null)
+		{
+			playerList.Clear();
+			foreach (var player in activePlayers)
 			{
-				text += " [Host]";
+				string text = $"{player.Name} (ID: {player.Id})";
+				if (player.Id == HOST_ID)
+				{
+					text += " [Host]";
+				}
+				playerList.AddItem(text);
 			}
-			playerList.AddItem(text);
+		}
+
+		if (spectatorList != null)
+		{
+			spectatorList.Clear();
+			foreach (var spectator in spectators)
+			{
+				string text = $"{spectator.Name} (ID: {spectator.Id})";
+				if (spectator.Id == HOST_ID)
+				{
+					text += " [Host]";
+				}
+				spectatorList.AddItem(text);
+			}
 		}
 	}
 }

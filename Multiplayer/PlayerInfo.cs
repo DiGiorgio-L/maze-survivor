@@ -3,6 +3,7 @@ public class PlayerInfo
 {
 	public string Name { get; set; }
 	public int Id { get; set; }
+	public bool IsSpectator { get; set; } = false;
 
 	// NOTE (DiGiorgio-L): Might add a tracker for each player's score
 	// public int Score { get; set; }
