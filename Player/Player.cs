@@ -3,32 +3,46 @@ using Godot;
 public partial class Player : CharacterBody3D {
 	[Signal] public delegate void stats_changedEventHandler();
 
-	[Export] private float _speed = 9.0f;
+	[ExportGroup("Movimiento")]
+	[Export] private float _speed = 7.0f;
 	[Export] private float _gravity = 9.8f;
 	[Export] private float _jumpStrength = 4.0f;
 	[Export] private float _mouseSensibility = 0.0005f;
-	
+
+	[ExportGroup("Llave e Interacción")]
+	[Export] public PackedScene KeyScene; // Asigna keys.tscn aquí en el Inspector
+
+	[ExportGroup("Referencias")]
 	[Export] private Camera3D _gameCamera;
 	[Export] private Node3D _characterVisual;
 	[Export] private RayCast3D _interactionRayCast;
-	[Export] private TextureRect _hudFace;
-	[Export] private Texture2D _hudFaceDamageTexture;
-	
+	[Export] private TextureRect _hudFace;               // RESTAURADO PARA Player.Combat.cs
+	[Export] private Texture2D _hudFaceDamageTexture;     // RESTAURADO PARA Player.Combat.cs
+
+	// Estado de la Llave
+	public bool HasKey { get; set; } = false;
+
 	private float _pitch = 0.0f;
 	private Vector3 _targetVelocity = Vector3.Zero;
 	private bool _isLocked = false;
-	
+
 	private Node _statusManager;
 	private Map _mapUI;
 	private CanvasLayer _hud;
-	
+
 	public override void _Ready() {	
 		_statusManager = GetNodeOrNull("StatusManager");
 		_hud = GetNodeOrNull<CanvasLayer>("HUD");
-		
+
 		if (_gameCamera == null) _gameCamera = GetNodeOrNull<Camera3D>("Head/Camera3D");
 		if (_characterVisual == null) _characterVisual = GetNodeOrNull<Node3D>("MeshInstance3D");
 		if (_interactionRayCast == null) _interactionRayCast = GetNodeOrNull<RayCast3D>("Head/Camera3D/RayCast3D");
+
+		// Configurar RayCast para que detecte todo al interactuar
+		if (_interactionRayCast != null) {
+			_interactionRayCast.CollideWithAreas = true;
+			_interactionRayCast.CollideWithBodies = true;
+		}
 
 		if (IsMultiplayerAuthority()) {
 			if (_gameCamera != null) _gameCamera.Current = true;
@@ -42,7 +56,35 @@ public partial class Player : CharacterBody3D {
 			if (_hud != null) _hud.Visible = false;
 		}
 	}
-	
+
+	#region Sistema de Llave
+
+	public void PickUpKey() {
+		HasKey = true;
+		GD.Print("Jugador: ¡Has recogido la llave!");
+	}
+
+	public void DropKey() {
+		if (!HasKey) return;
+
+		HasKey = false;
+
+		if (KeyScene != null) {
+			var keyInstance = KeyScene.Instantiate<Node3D>();
+			GetParent().AddChild(keyInstance);
+			keyInstance.GlobalPosition = GlobalPosition;
+			GD.Print("Jugador: Llave caída en la posición " + GlobalPosition);
+		}
+	}
+
+	public void Die() {
+		DropKey(); // Tirar la llave en el suelo al morir
+		SetInputLocked(true);
+		GD.Print("Jugador: Ha muerto.");
+	}
+
+	#endregion
+
 	public override void _Input(InputEvent @event) {
 		if (!IsMultiplayerAuthority() || _isLocked) return;
 
@@ -52,7 +94,7 @@ public partial class Player : CharacterBody3D {
 
 		if (@event is InputEventMouseMotion mouseMotion) {
 			RotateY(-mouseMotion.Relative.X * _mouseSensibility);
-			
+
 			_pitch = Mathf.Clamp(
 				_pitch - mouseMotion.Relative.Y * _mouseSensibility, 
 				Mathf.DegToRad(-89), 
@@ -76,7 +118,16 @@ public partial class Player : CharacterBody3D {
 		if (isInteractPressed) {
 			if (_interactionRayCast != null && _interactionRayCast.IsColliding()) {
 				GodotObject collider = _interactionRayCast.GetCollider();
-				if (collider != null) collider.Call("interact", this);
+				
+				if (collider is Node node) {
+					// Buscar el método 'interact' en el objeto golpeado o en sus padres
+					if (node.HasMethod("interact")) {
+						node.Call("interact", this);
+					}
+					else if (node.GetParent() != null && node.GetParent().HasMethod("interact")) {
+						node.GetParent().Call("interact", this);
+					}
+				}
 			}
 		}
 	}
@@ -102,9 +153,10 @@ public partial class Player : CharacterBody3D {
 
 	public override void _PhysicsProcess(double delta) {
 		if (!IsMultiplayerAuthority()) return;
-		
+
+		// Usa ProcessStaminaRegen de Player.Stats.cs
 		ProcessStaminaRegen(delta);
-		
+
 		Vector3 direction = Vector3.Zero;
 
 		if (!_isLocked) {
@@ -121,7 +173,7 @@ public partial class Player : CharacterBody3D {
 			direction = direction.Normalized();
 
 			if (isSprintingRequested && GetStat(1) > 0f) {
-				currentSpeed *= 1.4f; 
+				currentSpeed *= 1.3f; 
 				modify_stat(1, -12.0f * (float)delta); 
 			}
 

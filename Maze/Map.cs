@@ -9,6 +9,7 @@ public partial class Map : Control
 	[Export] public Color PathColor = new Color(0.85f, 0.85f, 0.9f);
 	[Export] public Color PlayerColor = new Color(0.9f, 0.2f, 0.2f);
 	[Export] public Color UnexploredColor = new Color(0.02f, 0.02f, 0.05f);
+	[Export] public Color DoorMarkerColor = new Color(0.1f, 0.9f, 0.2f); // Color verde para la puerta
 
 	private byte[,] _mazeData;
 	private bool[,] _exploredData;
@@ -17,6 +18,7 @@ public partial class Map : Control
 	private float _gridScale;
 	
 	private Node3D _player;
+	private Node3D _doorNode; // Referencia a la puerta
 	private Vector2I _lastPlayerGridPos = new Vector2I(-1, -1);
 	
 	private float _blinkTimer = 0f;
@@ -67,7 +69,7 @@ public partial class Map : Control
 
 		Vector2I currentGridPos = new Vector2I(playerGridX, playerGridZ);
 
-		// Revelar SOLAMENTE la casilla exactas por la que camina
+		// Revelar SOLAMENTE la casilla exacta por la que camina
 		if (currentGridPos != _lastPlayerGridPos)
 		{
 			_lastPlayerGridPos = currentGridPos;
@@ -125,7 +127,44 @@ public partial class Map : Control
 			}
 		}
 
-		// 5. Indicador del jugador (Punto rojo más pequeño)
+		// 5. MARCADOR DE LA PUERTA (Solo si el jugador posee la llave)
+		bool hasKey = false;
+		var keyProperty = _player.Get("HasKey");
+		if (keyProperty.VariantType != Variant.Type.Nil)
+		{
+			hasKey = (bool)keyProperty;
+		}
+
+		if (hasKey)
+		{
+			// Buscar la referencia de la puerta si aún no la tenemos
+			if (_doorNode == null || !IsInstanceValid(_doorNode))
+			{
+				_doorNode = GetTree().Root.FindChild("Door", true, false) as Node3D 
+						 ?? GetTree().Root.FindChild("DoorScene", true, false) as Node3D;
+			}
+
+			if (_doorNode != null && IsInstanceValid(_doorNode))
+			{
+				float doorScreenX = screenRect.Position.X + ((_doorNode.GlobalPosition.X / _gridScale) * cellWidth);
+				float doorScreenY = screenRect.Position.Y + ((_doorNode.GlobalPosition.Z / _gridScale) * cellHeight);
+
+				Vector2 doorPosOnScreen = new Vector2(doorScreenX, doorScreenY);
+				doorPosOnScreen.X = Mathf.Clamp(doorPosOnScreen.X, screenRect.Position.X, screenRect.End.X);
+				doorPosOnScreen.Y = Mathf.Clamp(doorPosOnScreen.Y, screenRect.Position.Y, screenRect.End.Y);
+
+				float doorRadius = Mathf.Max(3.5f, cellWidth * 1.1f);
+
+				// Dibujar un indicador verde parpadeante para la puerta
+				if (_showRecDot)
+				{
+					DrawCircle(doorPosOnScreen, doorRadius + 1.5f, Colors.White);
+				}
+				DrawCircle(doorPosOnScreen, doorRadius, DoorMarkerColor);
+			}
+		}
+
+		// 6. Indicador del jugador (Punto rojo)
 		float playerScreenX = screenRect.Position.X + ((_player.GlobalPosition.X / _gridScale) * cellWidth);
 		float playerScreenY = screenRect.Position.Y + ((_player.GlobalPosition.Z / _gridScale) * cellHeight);
 		
@@ -133,7 +172,6 @@ public partial class Map : Control
 		playerPosOnScreen.X = Mathf.Clamp(playerPosOnScreen.X, screenRect.Position.X, screenRect.End.X);
 		playerPosOnScreen.Y = Mathf.Clamp(playerPosOnScreen.Y, screenRect.Position.Y, screenRect.End.Y);
 
-		// Radio pequeño del punto rojo para no oscurecer el mapa
 		float playerRadius = Mathf.Max(2.5f, cellWidth * 0.75f);
 		DrawCircle(playerPosOnScreen, playerRadius, PlayerColor);
 	}

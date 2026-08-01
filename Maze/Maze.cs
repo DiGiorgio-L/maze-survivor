@@ -12,8 +12,10 @@ public partial class Maze : Node3D
 	[ExportGroup("Spawning & Entities")]
 	[Export] public PackedScene PlayerScene;
 	[Export] public PackedScene BossScene;
-	[Export] public bool DebugSpawnPlayerNearBoss = false;
+	[Export] public bool DebugSpawnPlayerNearBoss = true;
 	[Export] public PackedScene palo_de_madera;
+	[Export] public PackedScene KeyScene;
+[Export] public PackedScene DoorScene;
 
 	[ExportGroup("Texture Options")]
 	[Export] public Texture2D WallTexture;
