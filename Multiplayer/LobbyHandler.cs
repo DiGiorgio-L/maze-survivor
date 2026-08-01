@@ -93,15 +93,13 @@ public partial class LobbyHandler : Control
 	private void ConnectionFailed()
 	{
 		GD.Print("Connection failed!!");
-		SetLobbyState(false, false, "Status: Connection failed!");
+		ReturnToLobby("Status: Connection failed!");
 	}
 
 	private void ServerDisconnected()
 	{
 		GD.Print("Server disconnected!!");
-		GameManager.Players.Clear();
-		UpdatePlayerListUI();
-		SetLobbyState(false, false, "Status: Server disconnected!");
+		ReturnToLobby("Status: Host disconnected. Returned to lobby.");
 	}
 
 	private void PeerConnected(long id)
@@ -183,14 +181,41 @@ public partial class LobbyHandler : Control
 
 	public void _on_leave_button_down()
 	{
+		ReturnToLobby("Status: Disconnected");
+	}
+
+	public void ReturnToLobby(string statusMessage = "Status: Disconnected")
+	{
+		// 1. Clean up active game scenes
+		var activeGame = GetTree().Root.GetNodeOrNull("ActiveGameScene");
+		if (activeGame != null)
+		{
+			activeGame.QueueFree();
+		}
+
+		foreach (Node child in GetTree().Root.GetChildren())
+		{
+			if (child is SceneManager)
+			{
+				child.QueueFree();
+			}
+		}
+
+		// 2. Safely close multiplayer peer
 		if (Multiplayer.MultiplayerPeer != null)
 		{
 			Multiplayer.MultiplayerPeer.Close();
 			Multiplayer.MultiplayerPeer = null;
 		}
+
+		// 3. Clear player list state
 		GameManager.Players.Clear();
 		UpdatePlayerListUI();
-		SetLobbyState(false, false, "Status: Disconnected");
+
+		// 4. Restore input mouse mode and reveal Lobby UI
+		Input.MouseMode = Input.MouseModeEnum.Visible;
+		this.Show();
+		SetLobbyState(false, false, statusMessage);
 	}
 
 	public void _on_start_game_button_down()
@@ -204,6 +229,7 @@ public partial class LobbyHandler : Control
 	{	
 		// NOTE (DiGiorgio-L): Modify this to load a different scene. Right now it is set up to work with the test_scene.
 		var scene = ResourceLoader.Load<PackedScene>("res://test/test_multiplayer_scene.tscn").Instantiate<SceneManager>();
+		scene.Name = "ActiveGameScene";
 		GetTree().Root.AddChild(scene);
 		this.Hide();
 	}
