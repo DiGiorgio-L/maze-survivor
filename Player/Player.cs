@@ -232,5 +232,15 @@ public partial class Player : CharacterBody3D {
 	public void RemoveStatus(string statusId) {
 		remove_status(statusId);
 	}
+
+	public Camera3D GetCamera() {
+		if (_gameCamera == null) _gameCamera = GetNodeOrNull<Camera3D>("Head/Camera3D");
+		return _gameCamera;
+	}
+
+	public void SetMeshVisible(bool visible) {
+		if (_characterVisual == null) _characterVisual = GetNodeOrNull<Node3D>("MeshInstance3D");
+		if (_characterVisual != null) _characterVisual.Visible = visible;
+	}
 }
 // hablar con alejandro
