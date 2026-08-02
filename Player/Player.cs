@@ -1,4 +1,5 @@
 using Godot;
+using System;
 
 public partial class Player : CharacterBody3D {
 	[Signal] public delegate void stats_changedEventHandler();
@@ -10,17 +11,16 @@ public partial class Player : CharacterBody3D {
 	[Export] private float _mouseSensibility = 0.0005f;
 
 	[ExportGroup("Llave e Interacción")]
-	[Export] public PackedScene KeyScene; // Asigna keys.tscn aquí en el Inspector
+	[Export] public PackedScene KeyScene;
 
 	[ExportGroup("Referencias")]
 	[Export] private Camera3D _gameCamera;
 	[Export] private Node3D _characterVisual;
 	[Export] private RayCast3D _interactionRayCast;
-	[Export] private TextureRect _hudFace;               // RESTAURADO PARA Player.Combat.cs
-	[Export] private Texture2D _hudFaceDamageTexture;     // RESTAURADO PARA Player.Combat.cs
+	[Export] private TextureRect _hudFace;
+	[Export] private Texture2D _hudFaceDamageTexture;
 
-	// Estado de la Llave
-	public bool HasKey { get; set; } = false;
+	[Export] public bool HasKey { get; set; } = false;
 
 	private float _pitch = 0.0f;
 	private Vector3 _targetVelocity = Vector3.Zero;
@@ -31,6 +31,9 @@ public partial class Player : CharacterBody3D {
 	private CanvasLayer _hud;
 
 	public override void _Ready() {	
+		// Añadir automáticamente al grupo global "Players" para que el mapa lo detecte
+		AddToGroup("Players");
+
 		_statusManager = GetNodeOrNull("StatusManager");
 		_hud = GetNodeOrNull<CanvasLayer>("HUD");
 
@@ -38,7 +41,6 @@ public partial class Player : CharacterBody3D {
 		if (_characterVisual == null) _characterVisual = GetNodeOrNull<Node3D>("MeshInstance3D");
 		if (_interactionRayCast == null) _interactionRayCast = GetNodeOrNull<RayCast3D>("Head/Camera3D/RayCast3D");
 
-		// Configurar RayCast para que detecte todo al interactuar
 		if (_interactionRayCast != null) {
 			_interactionRayCast.CollideWithAreas = true;
 			_interactionRayCast.CollideWithBodies = true;
@@ -47,7 +49,6 @@ public partial class Player : CharacterBody3D {
 		if (IsMultiplayerAuthority()) {
 			if (_gameCamera != null) {
 				_gameCamera.Current = true;
-				GD.Print($"[Player {Name}] Authority camera set CURRENT=true");
 			}
 			if (_characterVisual != null) _characterVisual.Visible = false;
 			if (_hud != null) _hud.Visible = true;
@@ -56,7 +57,6 @@ public partial class Player : CharacterBody3D {
 		else {
 			if (_gameCamera != null) {
 				_gameCamera.Current = false;
-				GD.Print($"[Player {Name}] Non-authority camera set CURRENT=false");
 			}
 			if (_characterVisual != null) _characterVisual.Visible = true;
 			if (_hud != null) _hud.Visible = false;
@@ -68,25 +68,35 @@ public partial class Player : CharacterBody3D {
 	public void PickUpKey() {
 		HasKey = true;
 		GD.Print("Jugador: ¡Has recogido la llave!");
+		
+		if (Multiplayer.HasMultiplayerPeer() && IsMultiplayerAuthority()) {
+			Rpc(nameof(SyncKeyStatus), true);
+		}
+	}
+
+	[Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = false)]
+	private void SyncKeyStatus(bool status) {
+		HasKey = status;
 	}
 
 	public void DropKey() {
 		if (!HasKey) return;
-
 		HasKey = false;
 
 		if (KeyScene != null) {
 			var keyInstance = KeyScene.Instantiate<Node3D>();
 			GetParent().AddChild(keyInstance);
 			keyInstance.GlobalPosition = GlobalPosition;
-			GD.Print("Jugador: Llave caída en la posición " + GlobalPosition);
+		}
+		
+		if (Multiplayer.HasMultiplayerPeer() && IsMultiplayerAuthority()) {
+			Rpc(nameof(SyncKeyStatus), false);
 		}
 	}
 
 	public void Die() {
-		DropKey(); // Tirar la llave en el suelo al morir
+		DropKey();
 		SetInputLocked(true);
-		GD.Print("Jugador: Ha muerto.");
 	}
 
 	#endregion
@@ -126,7 +136,6 @@ public partial class Player : CharacterBody3D {
 				GodotObject collider = _interactionRayCast.GetCollider();
 				
 				if (collider is Node node) {
-					// Buscar el método 'interact' en el objeto golpeado o en sus padres
 					if (node.HasMethod("interact")) {
 						node.Call("interact", this);
 					}
@@ -152,15 +161,12 @@ public partial class Player : CharacterBody3D {
 				_mapUI.MoveToFront();
 				_mapUI.QueueRedraw();
 			}
-		} else {
-			GD.PrintErr("Player: No se encontró el nodo 'Map' en el árbol de escenas.");
 		}
 	}
 
 	public override void _PhysicsProcess(double delta) {
 		if (!IsMultiplayerAuthority()) return;
 
-		// Usa ProcessStaminaRegen de Player.Stats.cs
 		ProcessStaminaRegen(delta);
 
 		Vector3 direction = Vector3.Zero;
@@ -214,24 +220,14 @@ public partial class Player : CharacterBody3D {
 	}
 
 	public void apply_status(Resource statusEffect) {
-		if (_statusManager != null) {
-			_statusManager.Call("apply_status", statusEffect);
-		}
+		if (_statusManager != null) _statusManager.Call("apply_status", statusEffect);
 	}
-
-	public void ApplyStatus(Resource statusEffect) {
-		apply_status(statusEffect);
-	}
+	public void ApplyStatus(Resource statusEffect) => apply_status(statusEffect);
 
 	public void remove_status(string statusId) {
-		if (_statusManager != null) {
-			_statusManager.Call("remove_status", statusId);
-		}
+		if (_statusManager != null) _statusManager.Call("remove_status", statusId);
 	}
-
-	public void RemoveStatus(string statusId) {
-		remove_status(statusId);
-	}
+	public void RemoveStatus(string statusId) => remove_status(statusId);
 
 	public Camera3D GetCamera() {
 		if (_gameCamera == null) _gameCamera = GetNodeOrNull<Camera3D>("Head/Camera3D");
@@ -243,4 +239,3 @@ public partial class Player : CharacterBody3D {
 		if (_characterVisual != null) _characterVisual.Visible = visible;
 	}
 }
-// hablar con alejandro

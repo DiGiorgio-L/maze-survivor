@@ -1,15 +1,16 @@
 using Godot;
-using System;
+using System.Collections.Generic;
 
 public partial class Map : Control
 {
-	[Export] public Vector2 TabletSize = new Vector2(320, 320); // Tamaño reducido de la tablet
-	[Export] public float BorderThickness = 30.0f;               // Bordes plateados ajustados
+	[Export] public Vector2 TabletSize = new Vector2(320, 320);
+	[Export] public float BorderThickness = 30.0f;
 	[Export] public Color WallColor = new Color(0.15f, 0.15f, 0.2f);
 	[Export] public Color PathColor = new Color(0.85f, 0.85f, 0.9f);
-	[Export] public Color PlayerColor = new Color(0.9f, 0.2f, 0.2f);
+	[Export] public Color KeyHolderColor = new Color(1.0f, 0.84f, 0.0f); // Dorado para quien lleva la llave
+	[Export] public Color LocalPlayerColor = new Color(1.0f, 0.1f, 0.1f); // Rojo para el jugador local
 	[Export] public Color UnexploredColor = new Color(0.02f, 0.02f, 0.05f);
-	[Export] public Color DoorMarkerColor = new Color(0.1f, 0.9f, 0.2f); // Color verde para la puerta
+	[Export] public Color DoorMarkerColor = new Color(0.1f, 0.9f, 0.2f); // Verde para la puerta
 
 	private byte[,] _mazeData;
 	private bool[,] _exploredData;
@@ -17,8 +18,9 @@ public partial class Map : Control
 	private int _gridHeight;
 	private float _gridScale;
 	
-	private Node3D _player;
-	private Node3D _doorNode; // Referencia a la puerta
+	private Node3D _localPlayer;
+	private List<Node3D> _allPlayers = new List<Node3D>();
+	private Node3D _doorNode;
 	private Vector2I _lastPlayerGridPos = new Vector2I(-1, -1);
 	
 	private float _blinkTimer = 0f;
@@ -26,13 +28,11 @@ public partial class Map : Control
 
 	public override void _Ready()
 	{
-		// Centrar la tablet compacta en la pantalla
 		CustomMinimumSize = TabletSize;
 		SetAnchorsPreset(LayoutPreset.Center);
 		PivotOffset = TabletSize / 2.0f;
 		Position = (GetViewportRect().Size - TabletSize) / 2.0f;
-		
-		Visible = false; // Inicia oculta hasta presionar M
+		Visible = false;
 	}
 
 	public void InitializeMapData(byte[,] mazeData, float gridScale)
@@ -46,14 +46,18 @@ public partial class Map : Control
 		QueueRedraw();
 	}
 
-	public void SetPlayer(Node3D player)
+	public void SetLocalPlayer(Node3D player)
 	{
-		_player = player;
+		_localPlayer = player;
+	}
+
+	public void UpdatePlayersList(List<Node3D> players)
+	{
+		_allPlayers = players;
 	}
 
 	public override void _Process(double delta)
 	{
-		// Animación luz REC (parpadeo)
 		_blinkTimer += (float)delta;
 		if (_blinkTimer >= 0.5f)
 		{
@@ -62,14 +66,12 @@ public partial class Map : Control
 			if (Visible) QueueRedraw();
 		}
 
-		if (_player == null || _mazeData == null) return;
+		if (_localPlayer == null || _mazeData == null) return;
 
-		int playerGridX = Mathf.RoundToInt(_player.GlobalPosition.X / _gridScale);
-		int playerGridZ = Mathf.RoundToInt(_player.GlobalPosition.Z / _gridScale);
-
+		int playerGridX = Mathf.RoundToInt(_localPlayer.GlobalPosition.X / _gridScale);
+		int playerGridZ = Mathf.RoundToInt(_localPlayer.GlobalPosition.Z / _gridScale);
 		Vector2I currentGridPos = new Vector2I(playerGridX, playerGridZ);
 
-		// Revelar SOLAMENTE la casilla exacta por la que camina
 		if (currentGridPos != _lastPlayerGridPos)
 		{
 			_lastPlayerGridPos = currentGridPos;
@@ -99,19 +101,19 @@ public partial class Map : Control
 		
 		DrawRect(screenRect, UnexploredColor);
 
-		// 3. Punto Rojo "REC" en el borde superior centrado
+		// 3. Punto "REC"
 		if (_showRecDot)
 		{
 			Vector2 recDotPos = new Vector2(TabletSize.X / 2.0f, BorderThickness / 2.0f);
 			DrawCircle(recDotPos, 5.0f, new Color(1f, 0.1f, 0.1f));
 		}
 
-		if (_mazeData == null || _player == null) return;
+		if (_mazeData == null || _localPlayer == null) return;
 
-		// 4. Dibujar SOLAMENTE las casillas por donde pasó el jugador
 		float cellWidth = screenRect.Size.X / _gridWidth;
 		float cellHeight = screenRect.Size.Y / _gridHeight;
 
+		// 4. Dibujar celdas exploradas
 		for (int x = 0; x < _gridWidth; x++)
 		{
 			for (int z = 0; z < _gridHeight; z++)
@@ -127,17 +129,20 @@ public partial class Map : Control
 			}
 		}
 
-		// 5. MARCADOR DE LA PUERTA (Solo si el jugador posee la llave)
-		bool hasKey = false;
-		var keyProperty = _player.Get("HasKey");
-		if (keyProperty.VariantType != Variant.Type.Nil)
+		// Verificar si el jugador local actual tiene la llave
+		bool localPlayerHasKey = false;
+		if (IsInstanceValid(_localPlayer))
 		{
-			hasKey = (bool)keyProperty;
+			var keyProp = _localPlayer.Get("HasKey");
+			if (keyProp.VariantType != Variant.Type.Nil && (bool)keyProp)
+			{
+				localPlayerHasKey = true;
+			}
 		}
 
-		if (hasKey)
+		// 5. MARCADOR DE LA PUERTA (ÚNICAMENTE se muestra si el jugador LOCAL tiene la llave)
+		if (localPlayerHasKey)
 		{
-			// Buscar la referencia de la puerta si aún no la tenemos
 			if (_doorNode == null || !IsInstanceValid(_doorNode))
 			{
 				_doorNode = GetTree().Root.FindChild("Door", true, false) as Node3D 
@@ -155,7 +160,6 @@ public partial class Map : Control
 
 				float doorRadius = Mathf.Max(3.5f, cellWidth * 1.1f);
 
-				// Dibujar un indicador verde parpadeante para la puerta
 				if (_showRecDot)
 				{
 					DrawCircle(doorPosOnScreen, doorRadius + 1.5f, Colors.White);
@@ -164,15 +168,44 @@ public partial class Map : Control
 			}
 		}
 
-		// 6. Indicador del jugador (Punto rojo)
-		float playerScreenX = screenRect.Position.X + ((_player.GlobalPosition.X / _gridScale) * cellWidth);
-		float playerScreenY = screenRect.Position.Y + ((_player.GlobalPosition.Z / _gridScale) * cellHeight);
-		
-		Vector2 playerPosOnScreen = new Vector2(playerScreenX, playerScreenY);
-		playerPosOnScreen.X = Mathf.Clamp(playerPosOnScreen.X, screenRect.Position.X, screenRect.End.X);
-		playerPosOnScreen.Y = Mathf.Clamp(playerPosOnScreen.Y, screenRect.Position.Y, screenRect.End.Y);
+		// 6. MOSTRAR JUGADORES (Tu jugador local siempre en ROJO, y quien tenga la llave en DORADO)
+		foreach (var player in _allPlayers)
+		{
+			if (!IsInstanceValid(player)) continue;
 
-		float playerRadius = Mathf.Max(2.5f, cellWidth * 0.75f);
-		DrawCircle(playerPosOnScreen, playerRadius, PlayerColor);
+			bool isLocal = (player == _localPlayer);
+			
+			bool hasKey = false;
+			var keyProperty = player.Get("HasKey");
+			if (keyProperty.VariantType != Variant.Type.Nil)
+			{
+				hasKey = (bool)keyProperty;
+			}
+
+			Color playerColor;
+			if (isLocal)
+			{
+				playerColor = LocalPlayerColor; // Siempre rojo para ti
+			}
+			else if (hasKey)
+			{
+				playerColor = KeyHolderColor; // Dorado para aliados con la llave
+			}
+			else
+			{
+				continue; 
+			}
+
+			float pScreenX = screenRect.Position.X + ((player.GlobalPosition.X / _gridScale) * cellWidth);
+			float pScreenY = screenRect.Position.Y + ((player.GlobalPosition.Z / _gridScale) * cellHeight);
+			
+			Vector2 pPosOnScreen = new Vector2(pScreenX, pScreenY);
+			pPosOnScreen.X = Mathf.Clamp(pPosOnScreen.X, screenRect.Position.X, screenRect.End.X);
+			pPosOnScreen.Y = Mathf.Clamp(pPosOnScreen.Y, screenRect.Position.Y, screenRect.End.Y);
+
+			float pRadius = Mathf.Max(3.0f, cellWidth * 0.9f);
+
+			DrawCircle(pPosOnScreen, pRadius, playerColor);
+		}
 	}
 }

@@ -367,4 +367,3 @@ public partial class LobbyHandler : Control
 		}
 	}
 }
-
