@@ -88,30 +88,28 @@ public partial class MazeSpawner : Node
 	{
 		if (_maze.DoorScene == null) return;
 
-		// Obtenemos un espacio en el borde interior que tenga una pared externa justo a su espalda
 		Vector2I freeSpace = ObtenerEspacioConParedAdyacente();
 		var door = _maze.DoorScene.Instantiate<Node3D>();
 		Vector3 basePos = new Vector3(freeSpace.X * _maze.GridScale, 0.0f, freeSpace.Y * _maze.GridScale);
 
 		float offset = _maze.GridScale * 0.45f;
 
-		// Orientamos la puerta para que esté pegada al muro exterior pero dentro del pasillo transitable
-		if (freeSpace.X == 1) // Borde interior izquierdo (muro a la izquierda)
+		if (freeSpace.X == 1)
 		{
 			basePos.X -= offset;
 			door.RotationDegrees = new Vector3(0, 90, 0);
 		}
-		else if (freeSpace.X == _maze.Width - 2) // Borde interior derecho (muro a la derecha)
+		else if (freeSpace.X == _maze.Width - 2)
 		{
 			basePos.X += offset;
 			door.RotationDegrees = new Vector3(0, -90, 0);
 		}
-		else if (freeSpace.Y == 1) // Borde interior superior (muro arriba)
+		else if (freeSpace.Y == 1)
 		{
 			basePos.Z -= offset;
 			door.RotationDegrees = new Vector3(0, 0, 0);
 		}
-		else if (freeSpace.Y == _maze.Height - 2) // Borde interior inferior (muro abajo)
+		else if (freeSpace.Y == _maze.Height - 2)
 		{
 			basePos.Z += offset;
 			door.RotationDegrees = new Vector3(0, 180, 0);
@@ -131,14 +129,12 @@ public partial class MazeSpawner : Node
 		int maxX = _maze.Width - 1;
 		int maxZ = _maze.Height - 1;
 
-		// Buscamos exactamente en la franja de casillas interiores pegadas al borde (x=1, x=Width-2, z=1, z=Height-2)
 		for (int x = 1; x < maxX; x++)
 		{
 			for (int z = 1; z < maxZ; z++)
 			{
 				if (_maze.Map[x, z] == 0 && !_occupiedPositions.Contains(new Vector2I(x, z)))
 				{
-					// Verificamos si la casilla está en la línea de borde interior y tiene el muro exterior justo al lado
 					bool tocaBordeIzquierdo = (x == 1 && _maze.Map[x - 1, z] == 1);
 					bool tocaBordeDerecho = (x == maxX - 1 && _maze.Map[x + 1, z] == 1);
 					bool tocaBordeSuperior = (z == 1 && _maze.Map[x, z - 1] == 1);
@@ -172,15 +168,8 @@ public partial class MazeSpawner : Node
 			{
 				var playerInfo = activePlayers[i];
 				
-				Vector2I spawnPos;
-				if (playerInfo.Id == 1)
-				{
-					spawnPos = new Vector2I(_maze.Width / 2, _maze.Height / 2);
-				}
-				else
-				{
-					spawnPos = FindCornerSpace(i);
-				}
+				// Todos los jugadores (incluyendo el ID 1) aparecen en las esquinas por igual
+				Vector2I spawnPos = FindCornerSpace(i);
 
 				var player = _maze.PlayerScene.Instantiate<Node3D>();
 				player.Name = playerInfo.Id.ToString();
@@ -193,12 +182,13 @@ public partial class MazeSpawner : Node
 				{
 					_maze.SetSpawnedPlayer(player);
 				}
-				GD.Print($"[MazeSpawner] Spawning player '{playerInfo.Name}' (ID: {playerInfo.Id}) at pos {spawnPos}");
+				GD.Print($"[MazeSpawner] Spawning player '{playerInfo.Name}' (ID: {playerInfo.Id}) at corner pos {spawnPos}");
 			}
 		}
 		else
 		{
-			Vector2I spawnPos = new Vector2I(_maze.Width / 2, _maze.Height / 2);
+			// Offline / single-player fallback también usa esquina
+			Vector2I spawnPos = FindCornerSpace(0);
 
 			var player = _maze.PlayerScene.Instantiate<Node3D>();
 			player.Position = new Vector3(spawnPos.X * _maze.GridScale, 3.0f, spawnPos.Y * _maze.GridScale); 
