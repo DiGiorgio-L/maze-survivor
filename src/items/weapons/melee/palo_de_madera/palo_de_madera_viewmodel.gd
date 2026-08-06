@@ -1,0 +1,49 @@
+extends ViewModelBase
+## Viewmodel del palo de madera. Golpe melee con hitbox.
+
+var enemies_in_range: Array[Node3D] = []
+var can_use: bool = true
+var damage: float = 0.0
+
+@onready var _anim: AnimationPlayer = $anim
+@onready var _sound: AudioStreamPlayer = $palo_de_madera_sound
+
+
+func use() -> void:
+	if not can_use or _anim.is_playing():
+		return
+	_anim.play("Golpear")
+	_sound.play()
+	can_use = false
+	for enemy: Node3D in enemies_in_range:
+		if enemy.has_method("hit"):
+			enemy.hit(damage)
+
+
+func equip() -> void:
+	visible = true
+	if _anim:
+		_anim.play("equipar")
+
+
+func unequip() -> void:
+	if _anim:
+		_anim.play("desequipar")
+	can_use = false
+
+
+func _on_hitbox_body_entered(body: Node3D) -> void:
+	if body.is_in_group("player") and not enemies_in_range.has(body):
+		enemies_in_range.append(body)
+
+
+func _on_hitbox_body_exited(body: Node3D) -> void:
+	enemies_in_range.erase(body)
+
+
+func _on_anim_animation_finished(anim_name: StringName) -> void:
+	match anim_name:
+		&"Golpear", &"equipar":
+			can_use = true
+		&"desequipar":
+			visible = false
