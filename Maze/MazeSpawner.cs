@@ -58,6 +58,7 @@ public partial class MazeSpawner : Node
 		SpawnInventoryUI();
 		SpawnKey(bossSpawnPos);   
 		SpawnDoorOnWall();
+		SpawnBackpacks();
 		
 		// Test temporal — quitar cuando todo funcione
 		var loader = new Node();
@@ -105,6 +106,64 @@ public partial class MazeSpawner : Node
 			"res://src/inventory/Backpack/BackpackUI.tscn").Instantiate();
 		player.AddChild(bpUI);
 		bpUI.Call("setup", inv);
+	}
+	
+	private void SpawnBackpacks()
+	{
+		if (_maze.BackpackScene == null) return;
+
+		int cantidad = _random.Next(5, 11); // 5-10 mochilas
+
+		// Dividir el mapa en 4 cuadrantes (uno por esquina donde spawnean jugadores)
+		// y distribuir equitativamente
+		int porCuadrante = cantidad / 4;
+		int extras = cantidad % 4;
+
+		int midX = _maze.Width / 2;
+		int midZ = _maze.Height / 2;
+
+		// Cuadrantes: (startX, endX, startZ, endZ)
+		var cuadrantes = new (int, int, int, int)[]
+		{
+			(1, midX - 4, 1, midZ - 4),            // Esquina sup-izq
+			(midX + 4, _maze.Width - 2, 1, midZ - 4),   // Esquina sup-der
+			(1, midX - 4, midZ + 4, _maze.Height - 2),  // Esquina inf-izq
+			(midX + 4, _maze.Width - 2, midZ + 4, _maze.Height - 2), // Esquina inf-der
+		};
+
+		for (int q = 0; q < 4; q++)
+		{
+			int cantidadEnCuadrante = porCuadrante + (q < extras ? 1 : 0);
+			var (sx, ex, sz, ez) = cuadrantes[q];
+
+			for (int i = 0; i < cantidadEnCuadrante; i++)
+			{
+				Vector2I pos = GetEmptySpaceInQuadrant(sx, ex, sz, ez);
+				var backpack = _maze.BackpackScene.Instantiate<Node3D>();
+				backpack.Position = new Vector3(
+					pos.X * _maze.GridScale,
+					0.5f,
+					pos.Y * _maze.GridScale);
+				_maze.AddChild(backpack);
+				_occupiedPositions.Add(pos);
+			}
+		}
+		GD.Print($"[MazeSpawner] Spawned {cantidad} backpacks distributed across 4 quadrants");
+	}
+
+	private Vector2I GetEmptySpaceInQuadrant(int startX, int endX, int startZ, int endZ)
+	{
+		int intentos = 0;
+		while (intentos < 500)
+		{
+			int x = _random.Next(startX, endX + 1);
+			int z = _random.Next(startZ, endZ + 1);
+			Vector2I pos = new Vector2I(x, z);
+			if (_maze.Map[x, z] == 0 && !_occupiedPositions.Contains(pos))
+				return pos;
+			intentos++;
+		}
+		return ObtenerEspacioVacioAleatorio();
 	}
 
 	private void SpawnKey(Vector2I bossPosition)
