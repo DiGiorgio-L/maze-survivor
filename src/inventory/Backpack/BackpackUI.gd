@@ -61,6 +61,7 @@ func open(container: ItemContainer, _inv: Inventory) -> void:
 			_bp_slots[i].slot_shift_clicked.connect(_on_shift_click_bp)
 
 	is_open = true
+	backpack_container.changed.connect(_refresh)
 	_refresh()
 	_panel.visible = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -75,6 +76,8 @@ func close() -> void:
 		return
 	is_open = false
 	_deselect()
+	if backpack_container != null and backpack_container.changed.is_connected(_refresh):
+		backpack_container.changed.disconnect(_refresh)
 	backpack_container = null
 	_panel.visible = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
