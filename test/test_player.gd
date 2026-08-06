@@ -1,4 +1,4 @@
-extends Node3D
+extends Node
 
 signal stats_changed
 
