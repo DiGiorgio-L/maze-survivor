@@ -55,10 +55,15 @@ public partial class MazeSpawner : Node
 
 		Vector2I bossSpawnPos = SpawnBoss();
 		SpawnPlayer();
-		SpawnPalo();
+		SpawnInventoryUI();
 		SpawnKey(bossSpawnPos);   
 		SpawnDoorOnWall();
-	}
+		
+		// Test temporal — quitar cuando todo funcione
+		var loader = new Node();
+		loader.SetScript(GD.Load<GDScript>("res://test/test_inventory_loader.gd"));
+		_maze.AddChild(loader);
+			}
 
 	private Vector2I SpawnBoss()
 	{
@@ -73,6 +78,33 @@ public partial class MazeSpawner : Node
 		}
 
 		return spawnPos;
+	}
+	
+	public void SpawnInventoryUI()
+	{
+		var player = _maze.SpawnedPlayer;
+		if (player == null) return;
+
+		var inv = player.GetNodeOrNull("Inventory");
+		var handler = player.GetNodeOrNull("ItemUseHandler");
+
+		// Hotbar
+		var hotbar = GD.Load<PackedScene>(
+			"res://src/inventory/Hotbar/HotbarUI.tscn").Instantiate();
+		player.AddChild(hotbar);
+		hotbar.Call("setup", inv, handler);
+
+		// Inventario (Tab)
+		var invUI = GD.Load<PackedScene>(
+			"res://src/inventory/PlayerInventory/PlayerInventoryUI.tscn").Instantiate();
+		player.AddChild(invUI);
+		invUI.Call("setup", inv);
+
+		// BackpackUI (se abre al interactuar con mochilas)
+		var bpUI = GD.Load<PackedScene>(
+			"res://src/inventory/Backpack/BackpackUI.tscn").Instantiate();
+		player.AddChild(bpUI);
+		bpUI.Call("setup", inv);
 	}
 
 	private void SpawnKey(Vector2I bossPosition)
@@ -265,21 +297,6 @@ public partial class MazeSpawner : Node
 			{
 				_spectatorUI.UpdateSpectateText(targetInfo.Name, targetInfo.Id);
 			}
-		}
-	}
-
-	private void SpawnPalo()
-	{
-		if (_maze.palo_de_madera == null) return;
-		int cantidadPalos = _random.Next(5, 16);
-		float alturaPalo = 1.0f; 
-		for (int i = 0; i < cantidadPalos; i++)
-		{
-			Vector2I spawnPos = ObtenerEspacioVacioAleatorio();
-			var palo = _maze.palo_de_madera.Instantiate<Node3D>();
-			palo.Position = new Vector3(spawnPos.X * _maze.GridScale, alturaPalo, spawnPos.Y * _maze.GridScale); 
-			_maze.AddChild(palo);
-			_occupiedPositions.Add(spawnPos);
 		}
 	}
 

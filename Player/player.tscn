@@ -4,6 +4,9 @@
 [ext_resource type="PackedScene" uid="uid://bi7x1btixwc6f" path="res://src/keysitem/keys.tscn" id="2_gwnis"]
 [ext_resource type="Script" uid="uid://c4s6cqrqmbefu" path="res://src/effects/status_manager.gd" id="2_status_mgr"]
 [ext_resource type="PackedScene" uid="uid://c8n4y2b3u1h5d" path="res://src/ui/hud.tscn" id="3_hud"]
+[ext_resource type="Script" uid="uid://bprm1awupcf6w" path="res://src/inventory/inventory.gd" id="5_fhl08"]
+[ext_resource type="Script" uid="uid://cj3avc6q8co8l" path="res://src/inventory/item_use_handler.gd" id="6_vtle1"]
+[ext_resource type="Script" uid="uid://vgtsypb7hiy4" path="res://src/inventory/hand_handler.gd" id="7_vtle1"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_onrkg"]
 
@@ -39,6 +42,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, 0)
 target_position = Vector3(0, 0, -3)
 collide_with_areas = true
 
+[node name="HandMount" type="Node3D" parent="Head/Camera3D" unique_id=1078747058]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, -0.3, -0.5)
+
 [node name="StatusManager" type="Node" parent="." unique_id=1812853408]
 script = ExtResource("2_status_mgr")
 
@@ -46,3 +52,15 @@ script = ExtResource("2_status_mgr")
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=1233248879]
 replication_config = SubResource("SceneReplicationConfig_4ntmi")
+
+[node name="Inventory" type="Node" parent="." unique_id=42362497]
+script = ExtResource("5_fhl08")
+metadata/_custom_type_script = "uid://bprm1awupcf6w"
+
+[node name="ItemUseHandler" type="Node" parent="." unique_id=154411921]
+script = ExtResource("6_vtle1")
+metadata/_custom_type_script = "uid://cj3avc6q8co8l"
+
+[node name="HandHandler" type="Node" parent="." unique_id=128391514]
+script = ExtResource("7_vtle1")
+metadata/_custom_type_script = "uid://vgtsypb7hiy4"

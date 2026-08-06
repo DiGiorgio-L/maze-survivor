@@ -15,7 +15,6 @@ public partial class Maze : Node3D
 	[Export] public PackedScene PlayerScene;
 	[Export] public PackedScene BossScene;
 	[Export] public bool DebugSpawnPlayerNearBoss = true;
-	[Export] public PackedScene palo_de_madera;
 	[Export] public PackedScene KeyScene;
 	[Export] public PackedScene DoorScene;
 
@@ -26,7 +25,7 @@ public partial class Maze : Node3D
 	public byte[,] Map;
 	private Random _random = new Random();
 	private NavigationRegion3D _navRegion;
-	private Node3D _spawnedPlayer;
+	public Node3D SpawnedPlayer { get; private set; }
 	private Map _mapUIInstance;
 
 	public override void _Ready()
@@ -121,7 +120,7 @@ public partial class Maze : Node3D
 
 	public void SetSpawnedPlayer(Node3D player)
 	{
-		_spawnedPlayer = player;
+		SpawnedPlayer = player;
 	}
 
 	private void CreateFloorWithCollision()
