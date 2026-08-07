@@ -104,6 +104,9 @@ public partial class Player : CharacterBody3D {
 	public override void _Input(InputEvent @event) {
 		if (!IsMultiplayerAuthority() || _isLocked) return;
 
+		// No procesar mouse si el cursor está visible
+		if (Input.MouseMode == Input.MouseModeEnum.Visible) return;
+	
 		if (@event is InputEventKey keyEvent && keyEvent.Pressed && !keyEvent.Echo && keyEvent.Keycode == Key.M) {
 			ToggleMap();
 		}
@@ -123,10 +126,11 @@ public partial class Player : CharacterBody3D {
 				_gameCamera.Rotation = cameraRotation;
 			}
 		}
-
-		if (@event is InputEventKey escapeKey && escapeKey.Pressed && escapeKey.Keycode == Key.Escape) {
-			Input.MouseMode = Input.MouseModeEnum.Visible;
-		}
+		
+		// (?) PARA PROBAR EL INVENTARIO COMENTÉ ESTO: 
+		// if (@event is InputEventKey escapeKey && escapeKey.Pressed && escapeKey.Keycode == Key.Escape) {
+		//	Input.MouseMode = Input.MouseModeEnum.Visible;
+		// }
 
 		bool isInteractPressed = (@event is InputEventKey interactKey && interactKey.Pressed && interactKey.Keycode == Key.E) || 
 			(InputMap.HasAction("interact") && @event.IsActionPressed("interact"));
