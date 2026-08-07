@@ -93,6 +93,9 @@ func _mount(scene: PackedScene, slot: InventorySlot) -> void:
 	_hand_mount.add_child(_current_viewmodel)
 	_sync_viewmodel_data(slot)
 	_current_viewmodel.equip()
+	var player: Node = get_parent()
+	if player.has_method("SetIsHoldingWeapon"):
+		player.call("SetIsHoldingWeapon", true)
 
 
 func _unmount() -> void:
@@ -105,6 +108,9 @@ func _unmount() -> void:
 	# Limpiar cualquier hijo residual del mount
 	for child: Node in _hand_mount.get_children():
 		child.queue_free()
+	var player: Node = get_parent()
+	if player.has_method("SetIsHoldingWeapon"):
+		player.call("SetIsHoldingWeapon", false)
 
 
 func _sync_viewmodel_data(slot: InventorySlot) -> void:
