@@ -1,16 +1,16 @@
 class_name ProjectileWeaponComponent extends WeaponComponent
+## Datos de un arma a distancia. La munición vive en slot.instance_data.
+## La lógica de disparo (instanciar proyectil, trayectoria) la maneja la escena view_model.
 
 @export var max_ammo: int = 10
-@export var reload_time: float = 1.0
-@export var projectile_speed: float = 10.0
-var current_ammo: int = 0
+@export var projectile_scene: PackedScene
 
-func _ready():
-	current_ammo = max_ammo
+func on_used(slot: InventorySlot) -> void:
+	if slot == null:
+		return
+	if not slot.instance_data.has("ammo"):
+		return
+	slot.instance_data["ammo"] = maxi(slot.instance_data["ammo"] - 1, 0)
 
-func can_execute(target) -> bool:
-	return current_ammo > 0
-
-func execute(target) -> void:
-	if !can_execute(target): return
-	pass
+static func create_instance_data(ammo: int) -> Dictionary:
+	return {"ammo": ammo}

@@ -254,6 +254,7 @@ public partial class LobbyHandler : Control
 	[Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
 	public void startGame()
 	{	
+		// "res://maze.tscn"
 		var scene = ResourceLoader.Load<PackedScene>("res://maze.tscn").Instantiate();
 		scene.Name = "ActiveGameScene";
 		GetTree().Root.AddChild(scene);
